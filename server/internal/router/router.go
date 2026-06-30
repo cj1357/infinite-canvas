@@ -1,0 +1,126 @@
+package router
+
+import (
+	"net/http"
+
+	"infinite-canvas/server/internal/config"
+	"infinite-canvas/server/internal/handler"
+	"infinite-canvas/server/internal/httpx"
+	"infinite-canvas/server/internal/middleware"
+	"infinite-canvas/server/internal/repository"
+	"infinite-canvas/server/internal/service"
+	"infinite-canvas/server/internal/storage"
+
+	"github.com/gin-gonic/gin"
+)
+
+func New(repo *repository.Repository, store storage.Store, cfg config.Config) *gin.Engine {
+	if cfg.AppEnv == "production" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+	r := gin.Default()
+	r.Use(cors(cfg))
+
+	authService := service.NewAuthService(repo, cfg)
+	billingService := service.NewBillingService(repo)
+	dataService := service.NewDataService(repo)
+	mediaService := service.NewMediaService(repo, store)
+	newapiService := service.NewNewAPIService(repo, cfg)
+	adminService := service.NewAdminService(repo, newapiService)
+
+	authHandler := handler.NewAuthHandler(authService, cfg)
+	dataHandler := handler.NewDataHandler(dataService)
+	mediaHandler := handler.NewMediaHandler(mediaService)
+	billingHandler := handler.NewBillingHandler(billingService)
+	adminHandler := handler.NewAdminHandler(adminService)
+	aiHandler := handler.NewAIHandler(billingService, newapiService)
+	authMiddleware := middleware.NewAuthMiddleware(authService, cfg.CookieName)
+
+	api := r.Group("/api/server")
+	api.GET("/health", func(c *gin.Context) {
+		httpx.OK(c, gin.H{"status": "ok"})
+	})
+
+	auth := api.Group("/auth")
+	auth.POST("/register", authHandler.Register)
+	auth.POST("/login", authHandler.Login)
+	auth.POST("/logout", authHandler.Logout)
+	auth.GET("/me", authMiddleware.Required(), authHandler.Me)
+
+	protected := api.Group("")
+	protected.Use(authMiddleware.Required())
+	protected.GET("/billing/me", billingHandler.Me)
+	protected.POST("/billing/estimate", billingHandler.Estimate)
+	protected.GET("/usage-requests", billingHandler.ListUsage)
+	protected.GET("/credit-ledger", billingHandler.ListLedger)
+
+	protected.GET("/canvas-projects", dataHandler.ListCanvasProjects)
+	protected.POST("/canvas-projects", dataHandler.CreateCanvasProject)
+	protected.PATCH("/canvas-projects/:id", dataHandler.UpdateCanvasProject)
+	protected.DELETE("/canvas-projects/:id", dataHandler.DeleteCanvasProject)
+	protected.GET("/assets", dataHandler.ListAssets)
+	protected.POST("/assets", dataHandler.CreateAsset)
+	protected.PATCH("/assets/:id", dataHandler.UpdateAsset)
+	protected.DELETE("/assets/:id", dataHandler.DeleteAsset)
+	protected.GET("/generation-logs", dataHandler.ListGenerationLogs)
+	protected.POST("/generation-logs", dataHandler.CreateGenerationLog)
+	protected.DELETE("/generation-logs/:id", dataHandler.DeleteGenerationLog)
+	protected.POST("/import/local-data", dataHandler.ImportLocalData)
+
+	protected.POST("/media/upload", mediaHandler.Upload)
+	protected.GET("/media/:storageKey", mediaHandler.Get)
+	protected.DELETE("/media/:storageKey", mediaHandler.Delete)
+
+	protected.POST("/ai/images/generations", aiHandler.ProxyPost("image_generation", "/images/generations"))
+	protected.POST("/ai/images/edits", aiHandler.ProxyPost("image_edit", "/images/edits"))
+	protected.POST("/ai/responses", aiHandler.ProxyPost("text_response", "/responses"))
+	protected.POST("/ai/audio/speech", aiHandler.ProxyPost("audio_speech", "/audio/speech"))
+	protected.POST("/ai/videos", aiHandler.ProxyPost("video", "/videos"))
+	protected.GET("/ai/videos/:id/content", aiHandler.ProxyGetWithSuffix("/videos", "/content"))
+	protected.GET("/ai/videos/:id", aiHandler.ProxyGet("/videos"))
+
+	admin := api.Group("/admin")
+	admin.Use(authMiddleware.Required(), authMiddleware.AdminRequired())
+	admin.GET("/users", adminHandler.ListUsers)
+	admin.POST("/users/:id/grant-entitlement", billingHandler.GrantEntitlement)
+	admin.POST("/users/:id/adjust-credits", billingHandler.AdjustCredits)
+	admin.POST("/users/:id/reset-period", billingHandler.ResetPeriod)
+	admin.POST("/users/:id/reset-five-hour-window", billingHandler.ResetFiveHourWindow)
+	admin.GET("/model-rate-rules", billingHandler.ListRateRules)
+	admin.POST("/model-rate-rules", billingHandler.CreateRateRule)
+	admin.PATCH("/model-rate-rules/:id", billingHandler.UpdateRateRule)
+	admin.GET("/newapi-config", adminHandler.GetNewAPIConfig)
+	admin.POST("/newapi-config", adminHandler.SaveNewAPIConfig)
+	admin.PATCH("/newapi-config", adminHandler.SaveNewAPIConfig)
+
+	return r
+}
+
+func cors(cfg config.Config) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		origin := c.GetHeader("Origin")
+		if origin != "" && allowOrigin(origin, cfg.CORSOrigins) {
+			c.Header("Access-Control-Allow-Origin", origin)
+			c.Header("Access-Control-Allow-Credentials", "true")
+			c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			c.Header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
+		}
+		if c.Request.Method == http.MethodOptions {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+		c.Next()
+	}
+}
+
+func allowOrigin(origin string, origins []string) bool {
+	if len(origins) == 0 {
+		return false
+	}
+	for _, item := range origins {
+		if item == "*" || item == origin {
+			return true
+		}
+	}
+	return false
+}

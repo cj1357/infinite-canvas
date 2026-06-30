@@ -1,0 +1,65 @@
+---
+title: SaaS 部署
+description: 多账号版本在 VPS、1Panel、OpenResty 和 Cloudflare 上的部署方式
+---
+
+# SaaS 部署
+
+多账号商业版建议长期放在 `saas/multi-user` 分支；`main` 保持与原作者 fork 同步。上游更新后先同步 `main`，再把 `main` merge 到 `saas/multi-user`。
+
+## 服务组成
+
+- `web`：Next.js 前端，未登录时仍支持本地模式，登录后 AI 请求走 `/api/server/ai/*`。
+- `server`：Go + Gin + GORM 后端，负责账号、session、额度、后台、媒体和 NewAPI 代理。
+- `postgres`：PostgreSQL，保存账号、云端数据、额度、流水和支付预留表。
+- Cloudflare R2：生产环境建议保存图片、视频和音频媒体文件。
+
+## Docker Compose
+
+根目录 `docker-compose.yml` 已包含 `web`、`server` 和 `postgres`。本地构建：
+
+```bash
+docker compose -f docker-compose.local.yml up -d --build
+```
+
+VPS / 1Panel 可以直接使用根目录 `docker-compose.yml`，并在环境变量里配置：
+
+```env
+NEWAPI_BASE_URL=https://你的-newapi-域名/v1
+NEWAPI_TOKEN=你的平台 token
+STORAGE_PROVIDER=r2
+R2_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
+R2_ACCESS_KEY_ID=...
+R2_SECRET_ACCESS_KEY=...
+R2_BUCKET=...
+```
+
+如果暂时不用 R2，可以保留 `STORAGE_PROVIDER=local`，媒体会写入容器挂载的 `./data/media`。
+
+正式 HTTPS 域名下建议设置 `SESSION_COOKIE_SECURE=true`；本地或内网 HTTP 测试时保持 `false`。
+
+## OpenResty
+
+OpenResty 建议这样分流：
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+}
+
+location /api/server/ {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+}
+```
+
+如果前端和后端由 Compose 内网连接，前端镜像也内置了 `SERVER_API_URL=http://server:8080` 的 rewrite，可用于不单独配置反代的测试环境。
+
+## 当前边界
+
+当前版本已经具备后端表结构、账号接口、额度事务、后台手动开通、NewAPI 代理、媒体上传接口和账号页。画布项目、素材和生成记录的云端接口已提供，但画布现有 localforage 读写路径尚未整体切换；未登录模式仍是浏览器本地数据。

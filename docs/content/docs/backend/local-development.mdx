@@ -1,11 +1,11 @@
 ---
 title: 本地开发
-description: 前端优先的本地开发方式
+description: 前端与 SaaS 后端的本地开发方式
 ---
 
 # 本地开发
 
-当前主应用以 `web/` 前端为主，AI 请求由浏览器前台直连用户自己的 OpenAI 兼容接口。
+当前主应用仍保留未登录本地模式：画布、素材和 AI API Key 默认在浏览器本地。`saas/multi-user` 分支新增了 `server/` 后端，登录后 AI 请求会走后端 NewAPI 代理和额度系统。
 
 ## 1. 启动前端
 
@@ -25,7 +25,33 @@ http://localhost:3000
 
 打开右上角配置弹窗，填写自己的 `Base URL`、`API Key` 和模型名。第三方提示词由 Next.js route 拉取并缓存在运行实例内存中；WebDAV 可选择前端直连或 Next.js 转发。
 
-## 3. 启动文档站
+## 3. 启动后端
+
+本地后端需要 PostgreSQL：
+
+```bash
+cd server
+go run ./cmd/api
+```
+
+常用环境变量：
+
+```env
+SERVER_ADDR=:8080
+DATABASE_URL=postgres://infinite_canvas:infinite_canvas@localhost:5432/infinite_canvas?sslmode=disable
+NEWAPI_BASE_URL=https://你的-newapi-域名/v1
+NEWAPI_TOKEN=你的平台 token
+STORAGE_PROVIDER=local
+LOCAL_STORAGE_DIR=data/media
+```
+
+前端开发时如果希望 `/api/server/*` 转发到后端，启动 `web` 前设置：
+
+```bash
+SERVER_API_URL=http://localhost:8080 bun run dev
+```
+
+## 4. 启动文档站
 
 如果需要单独调整文档站，在 `docs` 目录执行：
 
@@ -36,5 +62,6 @@ bun run dev
 ## 常见场景
 
 - 改画布、页面和交互：主要看 `web/`
+- 改账号、额度、后台、媒体和 NewAPI 代理：主要看 `server/`
 - 改提示词缓存或 WebDAV 代理：主要看 `web/src/app/api/` 和 `web/src/app/webdav-proxy/`
 - 改文档站内容：主要看 `docs/content/docs/`

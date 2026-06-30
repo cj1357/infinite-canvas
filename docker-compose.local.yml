@@ -1,9 +1,49 @@
 services:
-  app:
-    image: infinite-canvas:local
+  web:
+    image: infinite-canvas-web:local
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        SERVER_API_URL: http://server:8080
     ports:
       - "3000:3000"
+    environment:
+      SERVER_API_URL: http://server:8080
+    depends_on:
+      - server
     restart: unless-stopped
+
+  server:
+    image: infinite-canvas-server:local
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    environment:
+      APP_ENV: development
+      SERVER_ADDR: :8080
+      DATABASE_URL: postgres://infinite_canvas:infinite_canvas@postgres:5432/infinite_canvas?sslmode=disable
+      SESSION_COOKIE_NAME: ic_session
+      SESSION_COOKIE_SECURE: "false"
+      NEWAPI_BASE_URL: ${NEWAPI_BASE_URL:-}
+      NEWAPI_TOKEN: ${NEWAPI_TOKEN:-}
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
+      LOCAL_STORAGE_DIR: /app/data/media
+    volumes:
+      - ./data/media:/app/data/media
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: infinite_canvas
+      POSTGRES_USER: infinite_canvas
+      POSTGRES_PASSWORD: infinite_canvas
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

@@ -49,4 +49,4 @@ docker compose -f docker-compose.local.yml up -d --build
 
 ## 数据说明
 
-当前主应用镜像只启动 Next.js。画布、我的素材、生成记录和 AI API Key 默认保存在浏览器本地；第三方提示词由 Next.js route 拉取后缓存在运行实例内存里，不需要额外挂载数据目录。
+`saas/multi-user` 分支的 Compose 会启动 Next.js、Go 后端和 PostgreSQL。未登录时，画布、我的素材、生成记录和 AI API Key 仍默认保存在浏览器本地；登录后，AI 请求会走后端 NewAPI 代理并使用额度系统。画布、素材和生成记录的云端 API 已提供，但现有页面的本地读写路径仍在逐步切换中。

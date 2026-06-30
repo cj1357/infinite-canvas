@@ -5,6 +5,8 @@ import { useEffect, useRef } from "react";
 import { App } from "antd";
 
 import { createModelChannel, useConfigStore } from "@/stores/use-config-store";
+import { fetchCloudUser } from "@/services/api/server";
+import { useUserStore } from "@/stores/use-user-store";
 
 export function ClientRootInit({ children }: { children: ReactNode }) {
     const { message } = App.useApp();
@@ -12,6 +14,7 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
     const updateConfig = useConfigStore((state) => state.updateConfig);
     const config = useConfigStore((state) => state.config);
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
+    const user = useUserStore((state) => state.user);
 
     useEffect(() => {
         if (handledConfigParams.current) return;
@@ -45,6 +48,11 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
         openConfigDialog(false);
         message.success("已导入本地直连配置");
     }, [config.channels, message, openConfigDialog, updateConfig]);
+
+    useEffect(() => {
+        if (user) return;
+        void fetchCloudUser().catch(() => undefined);
+    }, [user]);
 
     return <>{children}</>;
 }

@@ -1,0 +1,45 @@
+---
+title: 数据库结构
+description: 多账号 SaaS 后端数据库表
+---
+
+# 数据库结构
+
+SaaS 后端使用 PostgreSQL，当前由 GORM AutoMigrate 创建表。所有用户业务数据表都带 `user_id`，接口从 session 取当前用户后再查询，避免跨账号读取。
+
+## 账号与 session
+
+- `users`：用户账号、邮箱、用户名、显示名、密码哈希、角色、状态、最近登录时间。
+- `sessions`：登录 session 的 token hash、过期时间和撤销时间。
+
+第一个注册用户会自动成为管理员；也可以通过 `BOOTSTRAP_ADMIN_EMAIL` 指定管理员邮箱。
+
+## 云端数据
+
+- `canvas_projects`：画布项目，`data_json` 与 `metadata_json` 使用 JSONB 保存节点、连线和扩展字段。
+- `assets`：素材记录，包含素材类型、标题、标签 JSON、业务 JSON 和 `storage_key`。
+- `generation_logs`：生成记录，保存模型、能力、参数、结果、错误和关联 usage。
+- `media_objects`：媒体对象元数据，保存 `storage_key`、对象存储 key、内容类型、大小和 sha256。
+
+媒体 `storage_key` 保持 `image:<id>`、`video:<id>`、`audio:<id>` 风格；实际对象路径会加上 `user_id` 前缀。
+
+## 额度
+
+- `user_credit_accounts`：用户当前权益账户，包含总余额、5 小时限额、7 天周期限额、周期开始结束、短窗重置点、套餐和有效期。
+- `usage_requests`：每次 AI 请求，状态为 `reserved`、`settled`、`failed` 或 `refunded`。
+- `credit_ledger`：额度流水，记录后台赠送、手动调账、预扣、退款、结算差额、重置周期和清空短窗。
+- `model_rate_rules`：模型计费规则，可按 `ability + model` 或仅按 `ability` 设置默认估算。
+
+生成请求先创建 `reserved` 并扣减总余额；NewAPI 成功后结算，失败后全额退回。视频 pending 期间会继续占用 5 小时窗口和当前 7 天周期。
+
+## 支付预留
+
+- `plans`：套餐定义，保留价格、额度赠送、5 小时限额、7 天周期限额和周期天数。
+- `orders`：订单，第一版只使用 `provider=manual`。
+- `payment_events`：支付事件原始回调预留表，后续接爱发电、面包多、Dodo 或 Paddle 时新增 adapter 即可。
+
+当前版本没有接真实支付渠道，后台手动开通和调账是唯一开通方式。
+
+## 平台配置
+
+- `new_api_configs`：NewAPI Base URL、平台 token 和启用状态。接口返回配置时不会返回 token 明文，只返回 `hasToken`。
