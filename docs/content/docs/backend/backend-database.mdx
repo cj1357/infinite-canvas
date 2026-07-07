@@ -14,21 +14,36 @@ SaaS 后端使用 PostgreSQL，当前由 GORM AutoMigrate 创建表。所有用�
 
 第一个注册用户会自动成为管理员；也可以通过 `BOOTSTRAP_ADMIN_EMAIL` 指定管理员邮箱。
 
-## 云端数据
+## 画布项目
 
-- `canvas_projects`：画布项目，`data_json` 与 `metadata_json` 使用 JSONB 保存节点、连线和扩展字段。
-- `assets`：素材记录，包含素材类型、标题、标签 JSON、业务 JSON 和 `storage_key`。
-- `generation_logs`：生成记录，保存模型、能力、参数、结果、错误和关联 usage。
-- `media_objects`：媒体对象元数据，保存 `storage_key`、对象存储 key、内容类型、大小和 sha256。
+- `canvas_projects`：画布项目元数据，`data_json` 只保存布局、节点、连线和画布视图状态；媒体、素材、参考图集合和生成结果只保存对应领域对象 ID。
 
-媒体 `storage_key` 保持 `image:<id>`、`video:<id>`、`audio:<id>` 风格；实际对象路径会加上 `user_id` 前缀。
+## 媒体与创作素材
+
+- `media_objects`：媒体文件元数据，包含用户、媒体类型、R2 或本地对象 `storage_key`、缩略图 key、MIME、大小、宽高、时长、sha256 和扩展 JSON。生产环境媒体文件存放在 Cloudflare R2 私有桶，数据库只保存定位和元信息。
+- `creative_assets`：用户素材库，关联 `media_object_id`，保存素材类型、标题、描述、标签、收藏、评分、默认参考意图、国际化文本、使用次数和最后使用时间。
+
+`assets` 是当前旧素材接口仍在使用的过渡表；新的个人创作工具主路径使用 `creative_assets`。
+
+## 参考图工作流
+
+- `reference_sets`：参考图集合，关联用户和画布项目，保存标题、描述、来源和扩展 JSON。
+- `reference_intents`：参考图意图，关联参考图集合、素材或媒体对象，保存固定角色、权重、启用状态、排序、备注、裁剪 JSON、分析 JSON 和用户确认状态。固定角色包括主体一致、风格参考、构图参考和局部元素。
+
+## 生成运行与任务
+
+- `generation_runs`：一次生成运行，保存项目、参考图集合、父运行、能力、模型、原始 Prompt、编译后 Prompt、编译语言、模板 key、编译后的参考图 JSON、参数、状态、预扣和结算额度、关联 usage、网关信息、网关用量、成本、错误 key 和错误信息。
+- `generation_outputs`：生成输出，关联运行和媒体对象，保存画布节点 ID、状态、评分、是否选中、备注和扩展 JSON。
+- `generation_jobs`：PostgreSQL 后台任务队列，关联生成运行，保存状态、能力、优先级、尝试次数、锁定时间、开始和完成时间、下次重试时间、错误信息、请求 JSON 和响应 JSON。
+
+`generation_logs` 是当前旧生成记录接口仍在使用的过渡表；新的生成主路径使用 `generation_runs`、`generation_outputs` 和 `generation_jobs`。
 
 ## 额度
 
 - `user_credit_accounts`：用户当前权益账户，包含总余额、5 小时限额、7 天周期限额、周期开始结束、短窗重置点、套餐和有效期。
 - `usage_requests`：每次 AI 请求，状态为 `reserved`、`settled`、`failed` 或 `refunded`。
 - `credit_ledger`：额度流水，记录后台赠送、手动调账、预扣、退款、结算差额、重置周期和清空短窗。
-- `model_rate_rules`：模型计费规则，可按 `ability + model` 或仅按 `ability` 设置默认估算。
+- `model_rate_rules`：模型计费规则，可按 `ability + model` 或仅按 `ability` 设置默认估算，支持基础额度、按输出数、按参考图数、分辨率倍率和质量倍率组合计算。
 
 生成请求先创建 `reserved` 并扣减总余额；NewAPI 成功后结算，失败后全额退回。视频 pending 期间会继续占用 5 小时窗口和当前 7 天周期。
 
@@ -43,3 +58,5 @@ SaaS 后端使用 PostgreSQL，当前由 GORM AutoMigrate 创建表。所有用�
 ## 平台配置
 
 - `new_api_configs`：NewAPI Base URL、平台 token 和启用状态。接口返回配置时不会返回 token 明文，只返回 `hasToken`。
+- `model_capabilities`：模型能力配置，保存模型、能力、模型家族、最大参考图数量、最大输出数量、支持比例、分辨率、种子、遮罩、裁剪参考、透明背景、推荐参考角色和扩展 JSON。
+- `prompt_templates`：Prompt 编译模板，按语言、模板 key、能力、模型家族和版本区分，保存标题、模板内容、变量定义和启用状态。

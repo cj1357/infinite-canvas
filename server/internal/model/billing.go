@@ -68,14 +68,51 @@ type CreditLedger struct {
 
 type ModelRateRule struct {
 	BaseModel
-	Ability     string         `json:"ability" gorm:"uniqueIndex:idx_rate_rule;size:60;not null"`
-	Model       string         `json:"model" gorm:"uniqueIndex:idx_rate_rule;size:120;not null;default:''"`
-	BaseCredits int64          `json:"baseCredits" gorm:"not null;default:1"`
-	UnitCredits int64          `json:"unitCredits" gorm:"not null;default:0"`
-	UnitParam   string         `json:"unitParam" gorm:"size:60"`
-	Enabled     bool           `json:"enabled" gorm:"index;not null;default:true"`
-	Notes       string         `json:"notes" gorm:"size:300"`
-	ParamsJSON  datatypes.JSON `json:"paramsJson" gorm:"type:jsonb;not null;default:'{}'"`
+	Ability                  string         `json:"ability" gorm:"uniqueIndex:idx_rate_rule;size:60;not null"`
+	Model                    string         `json:"model" gorm:"uniqueIndex:idx_rate_rule;size:120;not null;default:''"`
+	BaseCredits              int64          `json:"baseCredits" gorm:"not null;default:1"`
+	UnitCredits              int64          `json:"unitCredits" gorm:"not null;default:0"`
+	UnitParam                string         `json:"unitParam" gorm:"size:60"`
+	PerOutputCredits         int64          `json:"perOutputCredits" gorm:"not null;default:0"`
+	PerReferenceCredits      int64          `json:"perReferenceCredits" gorm:"not null;default:0"`
+	ResolutionMultiplierJSON datatypes.JSON `json:"resolutionMultiplierJson" gorm:"type:jsonb;not null;default:'{}'"`
+	QualityMultiplierJSON    datatypes.JSON `json:"qualityMultiplierJson" gorm:"type:jsonb;not null;default:'{}'"`
+	Enabled                  bool           `json:"enabled" gorm:"index;not null;default:true"`
+	Notes                    string         `json:"notes" gorm:"size:300"`
+	ParamsJSON               datatypes.JSON `json:"paramsJson" gorm:"type:jsonb;not null;default:'{}'"`
+}
+
+type ModelCapability struct {
+	BaseModel
+	Model                         string         `json:"model" gorm:"uniqueIndex:idx_model_capability;size:120;not null"`
+	DisplayNameJSON               datatypes.JSON `json:"displayNameJson" gorm:"type:jsonb;not null;default:'{}'"`
+	Ability                       string         `json:"ability" gorm:"uniqueIndex:idx_model_capability;index;size:60;not null"`
+	ModelFamily                   string         `json:"modelFamily" gorm:"index;size:80"`
+	MaxReferences                 int            `json:"maxReferences" gorm:"not null;default:0"`
+	MaxOutputs                    int            `json:"maxOutputs" gorm:"not null;default:1"`
+	SupportedRatiosJSON          datatypes.JSON `json:"supportedRatiosJson" gorm:"type:jsonb;not null;default:'[]'"`
+	SupportedResolutionsJSON     datatypes.JSON `json:"supportedResolutionsJson" gorm:"type:jsonb;not null;default:'[]'"`
+	SupportsStreaming            bool           `json:"supportsStreaming" gorm:"not null;default:false"`
+	SupportsSeed                 bool           `json:"supportsSeed" gorm:"not null;default:false"`
+	SupportsMask                 bool           `json:"supportsMask" gorm:"not null;default:false"`
+	SupportsCropReference        bool           `json:"supportsCropReference" gorm:"not null;default:false"`
+	SupportsTransparentBackground bool           `json:"supportsTransparentBackground" gorm:"not null;default:false"`
+	Enabled                      bool           `json:"enabled" gorm:"index;not null;default:true"`
+	RecommendedRolesJSON         datatypes.JSON `json:"recommendedRolesJson" gorm:"type:jsonb;not null;default:'[]'"`
+	MetadataJSON                 datatypes.JSON `json:"metadataJson" gorm:"type:jsonb;not null;default:'{}'"`
+}
+
+type PromptTemplate struct {
+	BaseModel
+	Locale        string         `json:"locale" gorm:"uniqueIndex:idx_prompt_template;index;size:20;not null"`
+	TemplateKey   string         `json:"templateKey" gorm:"uniqueIndex:idx_prompt_template;index;size:120;not null"`
+	Ability       string         `json:"ability" gorm:"uniqueIndex:idx_prompt_template;index;size:60;not null"`
+	ModelFamily   string         `json:"modelFamily" gorm:"uniqueIndex:idx_prompt_template;index;size:80;not null;default:''"`
+	Title         string         `json:"title" gorm:"size:160;not null"`
+	Content       string         `json:"content" gorm:"type:text;not null"`
+	VariablesJSON datatypes.JSON `json:"variablesJson" gorm:"type:jsonb;not null;default:'[]'"`
+	Version       int            `json:"version" gorm:"uniqueIndex:idx_prompt_template;not null;default:1"`
+	Enabled       bool           `json:"enabled" gorm:"index;not null;default:true"`
 }
 
 type Plan struct {
