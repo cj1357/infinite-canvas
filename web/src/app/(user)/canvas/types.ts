@@ -72,6 +72,9 @@ export type CanvasNodeMetadata = {
     mediaObjectId?: string;
     assetId?: string;
     referenceSetId?: string;
+    referenceSetTitle?: string;
+    referenceIntentCount?: number;
+    referenceRoleCounts?: Partial<Record<"subject" | "style" | "composition" | "element", number>>;
     generationRunId?: string;
     generationOutputId?: string;
 };

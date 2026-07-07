@@ -44,11 +44,14 @@ import { CanvasToolbar } from "../components/canvas-toolbar";
 import { AssetPickerModal, type InsertAssetPayload } from "../components/asset-picker-modal";
 import { CanvasZoomControls } from "../components/canvas-zoom-controls";
 import { CanvasLocalAgentPanel } from "../components/canvas-local-agent-panel";
+import { ReferenceComposer } from "../components/reference-composer";
+import { ReferenceSetNode } from "../components/reference-set-node";
 import { useCanvasAgentStore } from "../stores/use-canvas-agent-store";
 import { useCanvasStore } from "../stores/use-canvas-store";
 import { applyCanvasAgentOps, type CanvasAgentOp, type CanvasAgentSnapshot } from "../utils/canvas-agent-ops";
 import { buildCanvasResourceReferences, buildNodeMentionReferences } from "../utils/canvas-resource-references";
 import type { CanvasAgentMode } from "../components/canvas-agent-chat-ui";
+import type { ReferenceIntent, ReferenceSetDetail } from "@/services/api/creative";
 import {
     CanvasNodeType,
     type CanvasAssistantImage,
@@ -175,7 +178,7 @@ function CanvasRefreshShell() {
     );
 }
 
-function ConnectionCreateMenu({ pending, onCreate, onClose }: { pending: PendingConnectionCreate; onCreate: (type: CanvasNodeType.Image | CanvasNodeType.Text | CanvasNodeType.Config | CanvasNodeType.Video | CanvasNodeType.Audio) => void; onClose: () => void }) {
+function ConnectionCreateMenu({ pending, onCreate, onClose }: { pending: PendingConnectionCreate; onCreate: (type: CanvasNodeType.Image | CanvasNodeType.Text | CanvasNodeType.Config | CanvasNodeType.ReferenceSet | CanvasNodeType.Video | CanvasNodeType.Audio) => void; onClose: () => void }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     return (
         <div
@@ -198,6 +201,7 @@ function ConnectionCreateMenu({ pending, onCreate, onClose }: { pending: Pending
                 <ConnectionCreateOption theme={theme} icon={<ImageIcon className="size-5" />} title="图片生成" onClick={() => onCreate(CanvasNodeType.Image)} />
                 <ConnectionCreateOption theme={theme} icon={<Video className="size-5" />} title="视频生成" onClick={() => onCreate(CanvasNodeType.Video)} />
                 <ConnectionCreateOption theme={theme} icon={<Music2 className="size-5" />} title="音频参考" onClick={() => onCreate(CanvasNodeType.Audio)} />
+                <ConnectionCreateOption theme={theme} icon={<Images className="size-5" />} title="参考图组" onClick={() => onCreate(CanvasNodeType.ReferenceSet)} />
                 <ConnectionCreateOption theme={theme} icon={<Settings2 className="size-5" />} title="配置节点" description="模型、尺寸、数量和输入顺序" onClick={() => onCreate(CanvasNodeType.Config)} />
             </div>
         </div>
@@ -322,6 +326,7 @@ function InfiniteCanvasPage() {
     const [collapsingBatchIds, setCollapsingBatchIds] = useState<Set<string>>(new Set());
     const [openingBatchIds, setOpeningBatchIds] = useState<Set<string>>(new Set());
     const [isNodeDragging, setIsNodeDragging] = useState(false);
+    const [referenceDetailsByNodeId, setReferenceDetailsByNodeId] = useState<Record<string, ReferenceSetDetail>>({});
 
     const nodesRef = useRef(nodes);
     const connectionsRef = useRef(connections);
@@ -424,6 +429,7 @@ function InfiniteCanvasPage() {
             setBackgroundMode(project.backgroundMode);
             setShowImageInfo(project.showImageInfo || false);
             setViewport(project.viewport);
+            setReferenceDetailsByNodeId({});
             historyRef.current = { past: [], future: [] };
             if (historyCommitTimerRef.current) {
                 clearTimeout(historyCommitTimerRef.current);
@@ -605,7 +611,7 @@ function InfiniteCanvasPage() {
     );
 
     const createConnectedNode = useCallback(
-        (type: CanvasNodeType.Image | CanvasNodeType.Text | CanvasNodeType.Config | CanvasNodeType.Video | CanvasNodeType.Audio, pending: PendingConnectionCreate) => {
+        (type: CanvasNodeType.Image | CanvasNodeType.Text | CanvasNodeType.Config | CanvasNodeType.ReferenceSet | CanvasNodeType.Video | CanvasNodeType.Audio, pending: PendingConnectionCreate) => {
             const metadata = type === CanvasNodeType.Config ? { model: effectiveConfig.imageModel || effectiveConfig.model, size: effectiveConfig.size, count: getGenerationCount(effectiveConfig.canvasImageCount || effectiveConfig.count) } : undefined;
             const newNode = createCanvasNode(type, pending.position, metadata);
             const connection = normalizeConnection(pending.connection.nodeId, newNode.id, [...nodesRef.current, newNode], pending.connection.handleType);
@@ -1551,6 +1557,19 @@ function InfiniteCanvasPage() {
     const handleConfigNodeChange = useCallback((nodeId: string, patch: Partial<CanvasNodeData["metadata"]>) => {
         setNodes((prev) => prev.map((node) => (node.id === nodeId ? applyNodeConfigPatch(node, patch) : node)));
     }, []);
+
+    const handleReferenceSetChange = useCallback(
+        (nodeId: string, detail: ReferenceSetDetail) => {
+            setReferenceDetailsByNodeId((prev) => ({ ...prev, [nodeId]: detail }));
+            handleConfigNodeChange(nodeId, {
+                referenceSetId: detail.referenceSet.id,
+                referenceSetTitle: detail.referenceSet.title,
+                referenceIntentCount: detail.intents.length,
+                referenceRoleCounts: countReferenceRoles(detail.intents),
+            });
+        },
+        [handleConfigNodeChange],
+    );
 
     const downloadNodeImage = useCallback((node: CanvasNodeData) => {
         if ((node.type !== CanvasNodeType.Image && node.type !== CanvasNodeType.Video && node.type !== CanvasNodeType.Audio) || !node.metadata?.content) return;
@@ -2596,7 +2615,18 @@ function InfiniteCanvasPage() {
                             resourceLabel={resourceReferenceByNodeId.get(node.id)}
                             mentionReferences={mentionReferencesByNodeId.get(node.id) || []}
                             renderPanel={(panelNode) =>
-                                panelNode.type === CanvasNodeType.Config ? (
+                                panelNode.type === CanvasNodeType.ReferenceSet ? (
+                                    <ReferenceComposer
+                                        node={panelNode}
+                                        projectId={projectId}
+                                        sourceNodes={getReferenceSourceNodes(panelNode.id, nodes, connections)}
+                                        connectedSourceNodes={getConnectedReferenceSourceNodes(panelNode.id, nodes, connections)}
+                                        initialDetail={referenceDetailsByNodeId[panelNode.id]}
+                                        defaultPrompt={panelNode.metadata?.prompt || ""}
+                                        onReferenceSetChange={handleReferenceSetChange}
+                                        onClose={() => setDialogNodeId(null)}
+                                    />
+                                ) : panelNode.type === CanvasNodeType.Config ? (
                                     <CanvasConfigComposer
                                         value={panelNode.metadata?.composerContent ?? panelNode.metadata?.prompt ?? ""}
                                         inputs={configInputsById.get(panelNode.id) || []}
@@ -2619,20 +2649,24 @@ function InfiniteCanvasPage() {
                                     />
                                 )
                             }
-                            renderNodeContent={(contentNode) => (
-                                <CanvasConfigNodePanel
-                                    node={contentNode}
-                                    isRunning={runningNodeId === contentNode.id}
-                                    inputSummary={getInputSummary(configInputsById.get(contentNode.id) || [])}
-                                    onConfigChange={handleConfigNodeChange}
-                                    onComposerToggle={() => setDialogNodeId((current) => (current === contentNode.id ? null : contentNode.id))}
-                                    onStop={confirmStopGeneration}
-                                    onGenerate={(nodeId) => {
-                                        const target = nodesRef.current.find((item) => item.id === nodeId);
-                                        void handleGenerateNode(nodeId, target?.metadata?.generationMode || "image", target?.metadata?.composerContent ?? target?.metadata?.prompt ?? "");
-                                    }}
-                                />
-                            )}
+                            renderNodeContent={(contentNode) =>
+                                contentNode.type === CanvasNodeType.ReferenceSet ? (
+                                    <ReferenceSetNode node={contentNode} detail={referenceDetailsByNodeId[contentNode.id]} onOpen={() => setDialogNodeId((current) => (current === contentNode.id ? null : contentNode.id))} />
+                                ) : (
+                                    <CanvasConfigNodePanel
+                                        node={contentNode}
+                                        isRunning={runningNodeId === contentNode.id}
+                                        inputSummary={getInputSummary(configInputsById.get(contentNode.id) || [])}
+                                        onConfigChange={handleConfigNodeChange}
+                                        onComposerToggle={() => setDialogNodeId((current) => (current === contentNode.id ? null : contentNode.id))}
+                                        onStop={confirmStopGeneration}
+                                        onGenerate={(nodeId) => {
+                                            const target = nodesRef.current.find((item) => item.id === nodeId);
+                                            void handleGenerateNode(nodeId, target?.metadata?.generationMode || "image", target?.metadata?.composerContent ?? target?.metadata?.prompt ?? "");
+                                        }}
+                                    />
+                                )
+                            }
                             onMouseDown={handleNodeMouseDown}
                             onHoverStart={(nodeId) => {
                                 if (nodeDraggingRef.current) return;
@@ -2712,6 +2746,7 @@ function InfiniteCanvasPage() {
                     onAddVideo={() => createNode(CanvasNodeType.Video)}
                     onAddAudio={() => createNode(CanvasNodeType.Audio)}
                     onAddText={() => createNode(CanvasNodeType.Text)}
+                    onAddReferenceSet={() => createNode(CanvasNodeType.ReferenceSet)}
                     onAddConfig={() => createNode(CanvasNodeType.Config)}
                     onUndo={undoCanvas}
                     onRedo={redoCanvas}
@@ -3169,6 +3204,32 @@ function getInputSummary(inputs: NodeGenerationInput[]) {
         videoCount: inputs.filter((input) => input.type === "video").length,
         audioCount: inputs.filter((input) => input.type === "audio").length,
     };
+}
+
+function getReferenceSourceNodes(nodeId: string, nodes: CanvasNodeData[], connections: CanvasConnection[]) {
+    const connected = getConnectedReferenceSourceNodes(nodeId, nodes, connections);
+    if (connected.length) return connected;
+    return nodes.filter((node) => node.id !== nodeId && isReferenceSourceNode(node));
+}
+
+function getConnectedReferenceSourceNodes(nodeId: string, nodes: CanvasNodeData[], connections: CanvasConnection[]) {
+    return connections
+        .filter((connection) => connection.toNodeId === nodeId)
+        .map((connection) => nodes.find((node) => node.id === connection.fromNodeId))
+        .filter((node): node is CanvasNodeData => Boolean(node && isReferenceSourceNode(node)));
+}
+
+function isReferenceSourceNode(node: CanvasNodeData) {
+    if (node.type === CanvasNodeType.Image && node.metadata?.content) return true;
+    if (node.type === CanvasNodeType.Media && node.metadata?.mediaKind !== "video" && node.metadata?.mediaKind !== "audio") return true;
+    return Boolean(node.metadata?.mediaObjectId || node.metadata?.assetId);
+}
+
+function countReferenceRoles(intents: ReferenceIntent[]) {
+    return intents.reduce<Partial<Record<ReferenceIntent["role"], number>>>((result, intent) => {
+        result[intent.role] = (result[intent.role] || 0) + 1;
+        return result;
+    }, {});
 }
 
 function buildGenerationConfig(config: AiConfig, node: CanvasNodeData | undefined, mode: CanvasNodeGenerationMode): AiConfig {
