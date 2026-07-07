@@ -19,12 +19,15 @@ type Config struct {
 	BootstrapAdminEmail string
 	NewAPIBaseURL       string
 	NewAPIToken         string
+	StorageProvider     string
+	MaxUploadBytes      int64
 	Storage             StorageConfig
 }
 
 type StorageConfig struct {
 	Provider        string
 	LocalDir        string
+	MaxUploadBytes  int64
 	R2Endpoint      string
 	R2AccessKey     string
 	R2SecretKey     string
@@ -34,6 +37,8 @@ type StorageConfig struct {
 
 func Load() Config {
 	sessionDays := intEnv("SESSION_TTL_DAYS", 30)
+	storageProvider := strings.ToLower(env("STORAGE_PROVIDER", "local"))
+	maxUploadBytes := int64Env("MAX_UPLOAD_BYTES", 50*1024*1024)
 	return Config{
 		Addr:                env("SERVER_ADDR", ":8080"),
 		AppEnv:              env("APP_ENV", "development"),
@@ -46,9 +51,12 @@ func Load() Config {
 		BootstrapAdminEmail: strings.ToLower(strings.TrimSpace(env("BOOTSTRAP_ADMIN_EMAIL", ""))),
 		NewAPIBaseURL:       strings.TrimRight(env("NEWAPI_BASE_URL", ""), "/"),
 		NewAPIToken:         env("NEWAPI_TOKEN", ""),
+		StorageProvider:     storageProvider,
+		MaxUploadBytes:      maxUploadBytes,
 		Storage: StorageConfig{
-			Provider:        strings.ToLower(env("STORAGE_PROVIDER", "local")),
+			Provider:        storageProvider,
 			LocalDir:        env("LOCAL_STORAGE_DIR", "data/media"),
+			MaxUploadBytes:  maxUploadBytes,
 			R2Endpoint:      env("R2_ENDPOINT", ""),
 			R2AccessKey:     env("R2_ACCESS_KEY_ID", ""),
 			R2SecretKey:     env("R2_SECRET_ACCESS_KEY", ""),
@@ -68,6 +76,14 @@ func env(key string, fallback string) string {
 
 func intEnv(key string, fallback int) int {
 	value, err := strconv.Atoi(env(key, ""))
+	if err != nil {
+		return fallback
+	}
+	return value
+}
+
+func int64Env(key string, fallback int64) int64 {
+	value, err := strconv.ParseInt(env(key, ""), 10, 64)
 	if err != nil {
 		return fallback
 	}

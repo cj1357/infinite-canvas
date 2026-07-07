@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"mime"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -79,11 +80,15 @@ func (s *localStore) Get(ctx context.Context, key string) (Object, error) {
 		_ = file.Close()
 		return Object{}, err
 	}
-	return Object{Body: file, Size: stat.Size()}, nil
+	return Object{Body: file, ContentType: mime.TypeByExtension(filepath.Ext(path)), Size: stat.Size()}, nil
 }
 
 func (s *localStore) Delete(ctx context.Context, key string) error {
-	return os.Remove(filepath.Join(s.dir, filepath.FromSlash(key)))
+	err := os.Remove(filepath.Join(s.dir, filepath.FromSlash(key)))
+	if os.IsNotExist(err) {
+		return nil
+	}
+	return err
 }
 
 type r2Store struct {

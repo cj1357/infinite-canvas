@@ -13,10 +13,10 @@ import (
 )
 
 type MediaHandler struct {
-	media *service.MediaService
+	media *service.MediaObjectService
 }
 
-func NewMediaHandler(media *service.MediaService) *MediaHandler {
+func NewMediaHandler(media *service.MediaObjectService) *MediaHandler {
 	return &MediaHandler{media: media}
 }
 
@@ -26,18 +26,21 @@ func (h *MediaHandler) Upload(c *gin.Context) {
 		httpx.Fail(c, http.StatusBadRequest, "请选择要上传的文件")
 		return
 	}
-	item, err := h.media.Upload(c.Request.Context(), middleware.CurrentUser(c).ID, c.PostForm("kind"), file)
+	item, err := h.media.Upload(c.Request.Context(), middleware.CurrentUser(c).ID, file)
 	writeResult(c, item, err)
 }
 
 func (h *MediaHandler) Get(c *gin.Context) {
-	item, object, err := h.media.Get(c.Request.Context(), middleware.CurrentUser(c).ID, c.Param("storageKey"))
+	object, item, err := h.media.Open(c.Request.Context(), middleware.CurrentUser(c).ID, c.Param("id"))
 	if err != nil {
 		httpx.Error(c, err)
 		return
 	}
 	defer object.Body.Close()
 	contentType := object.ContentType
+	if contentType == "" {
+		contentType = item.MimeType
+	}
 	if contentType == "" {
 		contentType = item.ContentType
 	}
@@ -53,7 +56,7 @@ func (h *MediaHandler) Get(c *gin.Context) {
 }
 
 func (h *MediaHandler) Delete(c *gin.Context) {
-	httpx.Error(c, h.media.Delete(c.Request.Context(), middleware.CurrentUser(c).ID, c.Param("storageKey")))
+	httpx.Error(c, h.media.Delete(c.Request.Context(), middleware.CurrentUser(c).ID, c.Param("id")))
 }
 
 func strconvFormatInt(value int64) string {

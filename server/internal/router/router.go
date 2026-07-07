@@ -24,7 +24,7 @@ func New(repo *repository.Repository, store storage.Store, cfg config.Config) *g
 	authService := service.NewAuthService(repo, cfg)
 	billingService := service.NewBillingService(repo)
 	dataService := service.NewDataService(repo)
-	mediaService := service.NewMediaService(repo, store)
+	mediaService := service.NewMediaObjectService(repo, store, cfg.Storage)
 	newapiService := service.NewNewAPIService(repo, cfg)
 	adminService := service.NewAdminService(repo, newapiService)
 
@@ -68,8 +68,8 @@ func New(repo *repository.Repository, store storage.Store, cfg config.Config) *g
 	protected.POST("/import/local-data", dataHandler.ImportLocalData)
 
 	protected.POST("/media/upload", mediaHandler.Upload)
-	protected.GET("/media/:storageKey", mediaHandler.Get)
-	protected.DELETE("/media/:storageKey", mediaHandler.Delete)
+	protected.GET("/media/:id", mediaHandler.Get)
+	protected.DELETE("/media/:id", mediaHandler.Delete)
 
 	protected.POST("/ai/images/generations", aiHandler.ProxyPost("image_generation", "/images/generations"))
 	protected.POST("/ai/images/edits", aiHandler.ProxyPost("image_edit", "/images/edits"))
