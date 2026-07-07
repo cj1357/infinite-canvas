@@ -423,14 +423,24 @@ func (s *BillingService) estimateCredits(ability string, modelName string, param
 }
 
 func applyRateRule(rule model.ModelRateRule, params map[string]any) int64 {
-	credits := rule.BaseCredits
-	if rule.UnitCredits > 0 && rule.UnitParam != "" {
-		credits += int64(math.Ceil(numberParam(params, rule.UnitParam))) * rule.UnitCredits
+	credits := float64(rule.BaseCredits)
+	outputs := math.Max(1, firstNumberParam(params, "outputs", "n", "count"))
+	references := math.Max(0, firstNumberParam(params, "references", "referenceCount", "reference_count"))
+	if rule.PerOutputCredits > 0 {
+		credits += outputs * float64(rule.PerOutputCredits)
 	}
+	if rule.PerReferenceCredits > 0 {
+		credits += references * float64(rule.PerReferenceCredits)
+	}
+	if rule.UnitCredits > 0 && rule.UnitParam != "" {
+		credits += math.Ceil(numberParam(params, rule.UnitParam)) * float64(rule.UnitCredits)
+	}
+	credits *= multiplierParam(rule.ResolutionMultiplierJSON, stringParam(params, "resolution"), stringParam(params, "size"))
+	credits *= multiplierParam(rule.QualityMultiplierJSON, stringParam(params, "quality"))
 	if credits <= 0 {
 		return 1
 	}
-	return credits
+	return int64(math.Ceil(credits))
 }
 
 func defaultEstimateCredits(ability string, params map[string]any) int64 {
@@ -473,6 +483,41 @@ func numberParam(params map[string]any, key string) float64 {
 	default:
 		return 0
 	}
+}
+
+func firstNumberParam(params map[string]any, keys ...string) float64 {
+	for _, key := range keys {
+		if value := numberParam(params, key); value > 0 {
+			return value
+		}
+	}
+	return 0
+}
+
+func stringParam(params map[string]any, key string) string {
+	if params == nil {
+		return ""
+	}
+	if value, ok := params[key].(string); ok {
+		return value
+	}
+	return ""
+}
+
+func multiplierParam(raw datatypes.JSON, keys ...string) float64 {
+	if len(raw) == 0 || string(raw) == "null" {
+		return 1
+	}
+	values := map[string]float64{}
+	if err := json.Unmarshal(raw, &values); err != nil {
+		return 1
+	}
+	for _, key := range keys {
+		if value := values[key]; value > 0 {
+			return value
+		}
+	}
+	return 1
 }
 
 func advancePeriodIfNeeded(repo *repository.Repository, account *model.UserCreditAccount, now time.Time) error {

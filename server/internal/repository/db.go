@@ -6,6 +6,7 @@ import (
 	"infinite-canvas/server/internal/config"
 	"infinite-canvas/server/internal/model"
 
+	"gorm.io/datatypes"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -26,7 +27,7 @@ func New(db *gorm.DB) *Repository {
 }
 
 func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(
+	if err := db.AutoMigrate(
 		&model.User{},
 		&model.Session{},
 		&model.CanvasProject{},
@@ -49,5 +50,31 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.Order{},
 		&model.PaymentEvent{},
 		&model.NewAPIConfig{},
-	)
+	); err != nil {
+		return err
+	}
+	return seedModelCapabilities(db)
+}
+
+func seedModelCapabilities(db *gorm.DB) error {
+	var count int64
+	if err := db.Model(&model.ModelCapability{}).Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	return db.Create(&model.ModelCapability{
+		Model:                     "default",
+		DisplayNameJSON:           datatypes.JSON([]byte(`{"zh-CN":"默认模型","en-US":"Default model"}`)),
+		Ability:                   "image",
+		ModelFamily:               "generic",
+		MaxReferences:             4,
+		MaxOutputs:                4,
+		SupportedRatiosJSON:      datatypes.JSON([]byte(`["1:1","3:4","4:3","9:16","16:9"]`)),
+		SupportedResolutionsJSON: datatypes.JSON([]byte(`["1024x1024"]`)),
+		Enabled:                  true,
+		RecommendedRolesJSON:     datatypes.JSON([]byte(`["subject","style","composition","element"]`)),
+		MetadataJSON:             datatypes.JSON([]byte(`{}`)),
+	}).Error
 }
