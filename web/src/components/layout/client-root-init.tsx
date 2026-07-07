@@ -15,6 +15,8 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
     const config = useConfigStore((state) => state.config);
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
     const user = useUserStore((state) => state.user);
+    const sessionChecked = useUserStore((state) => state.sessionChecked);
+    const markSessionChecked = useUserStore((state) => state.markSessionChecked);
 
     useEffect(() => {
         if (handledConfigParams.current) return;
@@ -50,9 +52,9 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
     }, [config.channels, message, openConfigDialog, updateConfig]);
 
     useEffect(() => {
-        if (user) return;
-        void fetchCloudUser().catch(() => undefined);
-    }, [user]);
+        if (user || sessionChecked) return;
+        void fetchCloudUser().catch(() => markSessionChecked());
+    }, [markSessionChecked, sessionChecked, user]);
 
     return <>{children}</>;
 }

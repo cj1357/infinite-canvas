@@ -13,6 +13,7 @@ import { DOCS_URL } from "@/constant/env";
 import { defaultConfig, type AiConfig, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
 import { resolveImageUrl, uploadImage, type UploadedImage } from "@/services/image-storage";
 import { resolveMediaUrl, uploadMediaFile, type UploadedFile } from "@/services/file-storage";
+import { useUserStore } from "@/stores/use-user-store";
 import { nanoid } from "nanoid";
 import { getDataUrlByteSize, readImageMeta } from "@/lib/image-utils";
 import { canvasThemes, type CanvasBackgroundMode } from "@/lib/canvas-theme";
@@ -261,12 +262,17 @@ function InfiniteCanvasPage() {
     const addAsset = useAssetStore((state) => state.addAsset);
     const cleanupAssetImages = useAssetStore((state) => state.cleanupImages);
     const hydrated = useCanvasStore((state) => state.hydrated);
+    const cloudLoaded = useCanvasStore((state) => state.cloudLoaded);
+    const cloudLoading = useCanvasStore((state) => state.cloudLoading);
+    const loadCloudProjects = useCanvasStore((state) => state.loadCloudProjects);
     const createProject = useCanvasStore((state) => state.createProject);
     const openProject = useCanvasStore((state) => state.openProject);
     const updateProject = useCanvasStore((state) => state.updateProject);
     const renameProject = useCanvasStore((state) => state.renameProject);
     const deleteProjects = useCanvasStore((state) => state.deleteProjects);
     const currentProject = useCanvasStore((state) => state.projects.find((project) => project.id === projectId));
+    const user = useUserStore((state) => state.user);
+    const sessionChecked = useUserStore((state) => state.sessionChecked);
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const [nodes, setNodes] = useState<CanvasNodeData[]>([]);
     const [connections, setConnections] = useState<CanvasConnection[]>([]);
@@ -395,7 +401,12 @@ function InfiniteCanvasPage() {
     );
 
     useEffect(() => {
-        if (!hydrated) return;
+        if (!hydrated || !sessionChecked || !user || cloudLoaded || cloudLoading) return;
+        void loadCloudProjects();
+    }, [cloudLoaded, cloudLoading, hydrated, loadCloudProjects, sessionChecked, user]);
+
+    useEffect(() => {
+        if (!hydrated || !sessionChecked || (user && !cloudLoaded)) return;
         setProjectLoaded(false);
         const project = openProject(projectId);
         if (!project) {
@@ -430,7 +441,7 @@ function InfiniteCanvasPage() {
             setProjectLoaded(true);
         };
         void restore();
-    }, [hydrated, openProject, projectId, router]);
+    }, [cloudLoaded, hydrated, openProject, projectId, router, sessionChecked, user]);
 
     useEffect(() => {
         if (!projectLoaded || !["new", "recent", "choose"].includes(searchParams.get("mode") || "")) return;

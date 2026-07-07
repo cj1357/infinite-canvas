@@ -14,6 +14,7 @@ type DataService struct {
 }
 
 type CanvasProjectInput struct {
+	ID           string         `json:"id"`
 	Title        string         `json:"title"`
 	Description  string         `json:"description"`
 	DataJSON     datatypes.JSON `json:"dataJson"`
@@ -59,6 +60,7 @@ func (s *DataService) CreateCanvasProject(userID string, input CanvasProjectInpu
 		return model.CanvasProject{}, errors.New("画布标题不能为空")
 	}
 	item := model.CanvasProject{
+		BaseModel:    model.BaseModel{ID: input.ID},
 		UserID:       userID,
 		Title:        input.Title,
 		Description:  input.Description,
@@ -66,7 +68,7 @@ func (s *DataService) CreateCanvasProject(userID string, input CanvasProjectInpu
 		MetadataJSON: jsonOrObject(input.MetadataJSON),
 		Version:      1,
 	}
-	return item, s.repo.SaveCanvasProject(&item)
+	return item, s.repo.CreateCanvasProject(&item)
 }
 
 func (s *DataService) UpdateCanvasProject(userID string, id string, input CanvasProjectInput) (model.CanvasProject, error) {

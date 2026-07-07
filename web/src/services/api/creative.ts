@@ -1,4 +1,34 @@
-import { serverRequest, type ListResult } from "@/services/api/server";
+import { SERVER_API_PREFIX, serverRequest, type ListResult } from "@/services/api/server";
+
+export type CloudCanvasProjectData = {
+    nodes?: unknown[];
+    connections?: unknown[];
+    chatSessions?: unknown[];
+    activeChatId?: string | null;
+    backgroundMode?: string;
+    showImageInfo?: boolean;
+    viewport?: unknown;
+};
+
+export type CloudCanvasProject = {
+    id: string;
+    userId: string;
+    title: string;
+    description: string;
+    dataJson?: CloudCanvasProjectData;
+    metadataJson?: Record<string, unknown>;
+    version: number;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type CloudCanvasProjectInput = {
+    id?: string;
+    title: string;
+    description?: string;
+    dataJson?: CloudCanvasProjectData;
+    metadataJson?: Record<string, unknown>;
+};
 
 export type MediaObject = {
     id: string;
@@ -13,6 +43,23 @@ export type MediaObject = {
     durationMs: number;
     sha256: string;
     metadataJson?: unknown;
+};
+
+export type CreativeAsset = {
+    id: string;
+    userId: string;
+    mediaObjectId: string;
+    kind: string;
+    title: string;
+    description: string;
+    tagsJson?: string[];
+    favorite: boolean;
+    rating: number;
+    defaultReferenceIntentJson?: Record<string, unknown>;
+    localizedTextJson?: Record<string, unknown>;
+    usageCount: number;
+    lastUsedAt?: string;
+    metadataJson?: Record<string, unknown>;
 };
 
 export type ReferenceSet = {
@@ -116,6 +163,60 @@ export type CreateGenerationRunInput = {
     prompt: string;
     params?: Record<string, unknown>;
 };
+
+export function listCanvasProjects(params = new URLSearchParams()) {
+    const query = params.toString();
+    return serverRequest<ListResult<CloudCanvasProject>>(`/canvas-projects${query ? `?${query}` : ""}`);
+}
+
+export function createCanvasProject(input: CloudCanvasProjectInput) {
+    return serverRequest<CloudCanvasProject>("/canvas-projects", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function updateCanvasProject(id: string, input: CloudCanvasProjectInput) {
+    return serverRequest<CloudCanvasProject>(`/canvas-projects/${id}`, { method: "PATCH", body: JSON.stringify(input) });
+}
+
+export function deleteCanvasProject(id: string) {
+    return serverRequest<null>(`/canvas-projects/${id}`, { method: "DELETE" });
+}
+
+export function uploadMediaObject(file: File) {
+    const form = new FormData();
+    form.append("file", file);
+    return serverRequest<MediaObject>("/media/upload", { method: "POST", body: form });
+}
+
+export function mediaObjectUrl(id: string) {
+    return `${SERVER_API_PREFIX}/media/${id}`;
+}
+
+export async function fetchMediaObjectBlob(id: string) {
+    const response = await fetch(mediaObjectUrl(id), { credentials: "include" });
+    if (!response.ok) throw new Error(`媒体读取失败：${response.status}`);
+    return response.blob();
+}
+
+export function deleteMediaObject(id: string) {
+    return serverRequest<null>(`/media/${id}`, { method: "DELETE" });
+}
+
+export function listCreativeAssets(params = new URLSearchParams()) {
+    const query = params.toString();
+    return serverRequest<ListResult<CreativeAsset>>(`/creative-assets${query ? `?${query}` : ""}`);
+}
+
+export function createCreativeAsset(input: Partial<CreativeAsset>) {
+    return serverRequest<CreativeAsset>("/creative-assets", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function updateCreativeAsset(id: string, input: Partial<CreativeAsset>) {
+    return serverRequest<CreativeAsset>(`/creative-assets/${id}`, { method: "PATCH", body: JSON.stringify(input) });
+}
+
+export function deleteCreativeAsset(id: string) {
+    return serverRequest<null>(`/creative-assets/${id}`, { method: "DELETE" });
+}
 
 export function listReferenceSets(params = new URLSearchParams()) {
     const query = params.toString();

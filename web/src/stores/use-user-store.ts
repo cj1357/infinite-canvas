@@ -19,12 +19,16 @@ export type CloudUser = LocalUser & {
 
 type UserStore = {
     user: CloudUser | null;
+    sessionChecked: boolean;
     setUser: (user: CloudUser | null) => void;
+    markSessionChecked: () => void;
     clearSession: () => void;
 };
 
 export const useUserStore = create<UserStore>()((set) => ({
     user: null,
-    setUser: (user) => set({ user }),
-    clearSession: () => set({ user: null }),
+    sessionChecked: false,
+    setUser: (user) => set({ user, sessionChecked: true }),
+    markSessionChecked: () => set({ sessionChecked: true }),
+    clearSession: () => set({ user: null, sessionChecked: true }),
 }));

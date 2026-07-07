@@ -29,6 +29,10 @@ func (r *Repository) SaveCanvasProject(item *model.CanvasProject) error {
 	return r.DB.Save(item).Error
 }
 
+func (r *Repository) CreateCanvasProject(item *model.CanvasProject) error {
+	return r.DB.Create(item).Error
+}
+
 func (r *Repository) DeleteCanvasProject(userID string, id string) error {
 	return r.DB.Where("id = ? AND user_id = ?", id, userID).Delete(&model.CanvasProject{}).Error
 }

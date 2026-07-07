@@ -345,6 +345,12 @@ function NodeContent(props: NodeContentRendererProps) {
 }
 
 const nodeContentRenderers = {
+    [CanvasNodeType.Media]: ImageNodeContent,
+    [CanvasNodeType.Prompt]: TextContent,
+    [CanvasNodeType.ReferenceSet]: EmptyImageContent,
+    [CanvasNodeType.Generation]: EmptyImageContent,
+    [CanvasNodeType.ResultGroup]: EmptyImageContent,
+    [CanvasNodeType.Note]: TextContent,
     [CanvasNodeType.Text]: TextContent,
     [CanvasNodeType.Image]: ImageNodeContent,
     [CanvasNodeType.Config]: EmptyImageContent,

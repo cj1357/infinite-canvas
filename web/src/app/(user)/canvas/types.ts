@@ -10,19 +10,32 @@ export type ViewportTransform = {
 };
 
 export enum CanvasNodeType {
+    Media = "media",
+    Prompt = "prompt",
+    ReferenceSet = "reference_set",
+    Generation = "generation",
+    ResultGroup = "result_group",
+    Note = "note",
+    /** @deprecated use Media with metadata.mediaKind=image */
     Image = "image",
+    /** @deprecated use Prompt */
     Text = "text",
+    /** @deprecated use Generation */
     Config = "config",
+    /** @deprecated use Media with metadata.mediaKind=video */
     Video = "video",
+    /** @deprecated use Media with metadata.mediaKind=audio */
     Audio = "audio",
 }
 
 export type CanvasNodeStatus = "idle" | "success" | "loading" | "error";
 export type CanvasGenerationMode = "text" | "image" | "video" | "audio";
 export type CanvasImageGenerationType = "generation" | "edit";
+export type CanvasMediaKind = "image" | "video" | "audio" | "file";
 
 export type CanvasNodeMetadata = {
     content?: string;
+    mediaKind?: CanvasMediaKind;
     composerContent?: string;
     prompt?: string;
     status?: CanvasNodeStatus;
@@ -56,6 +69,11 @@ export type CanvasNodeMetadata = {
     mimeType?: string;
     bytes?: number;
     durationMs?: number;
+    mediaObjectId?: string;
+    assetId?: string;
+    referenceSetId?: string;
+    generationRunId?: string;
+    generationOutputId?: string;
 };
 
 export type CanvasNodeData = {
