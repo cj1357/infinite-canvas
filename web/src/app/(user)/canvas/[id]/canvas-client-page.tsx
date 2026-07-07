@@ -321,7 +321,7 @@ function InfiniteCanvasPage() {
     const [assistantCollapsed, setAssistantCollapsed] = useState(true);
     const [assistantMounted, setAssistantMounted] = useState(false);
     const [assistantClosing, setAssistantClosing] = useState(false);
-    const [agentMode, setAgentMode] = useState<CanvasAgentMode>("online");
+    const [agentMode, setAgentMode] = useState<CanvasAgentMode>("product");
     const [agentUndoSnapshot, setAgentUndoSnapshot] = useState<CanvasAgentSnapshot | null>(null);
     const codexAutoConnect = ["new", "recent", "choose"].includes(searchParams.get("mode") || "");
     const codexCompactAgent = codexAutoConnect && searchParams.has("agentUrl");

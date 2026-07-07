@@ -24,6 +24,7 @@ import { NODE_DEFAULT_SIZE } from "../constants";
 import { CanvasNodeType, type CanvasAssistantMessage, type CanvasAssistantReference, type CanvasAssistantSession, type CanvasNodeData } from "../types";
 import { useCanvasAgentStore } from "../stores/use-canvas-agent-store";
 import { summarizeCanvasAgentOps, type CanvasAgentOp, type CanvasAgentSnapshot } from "../utils/canvas-agent-ops";
+import { CreativeAgentPanel } from "@/components/creative-agent/creative-agent-panel";
 
 export const CANVAS_AGENT_PANEL_MOTION_MS = 500;
 const PANEL_MOTION_SECONDS = CANVAS_AGENT_PANEL_MOTION_MS / 1000;
@@ -654,7 +655,9 @@ export function CanvasAssistantPanel({ nodes, selectedNodeIds, snapshot, session
                         </Tooltip>
                     </div>
                 </header>
-                {agentMode === "local" ? (
+                {agentMode === "product" ? (
+                    <CreativeAgentPanel snapshot={snapshot} onApplyOps={onApplyOps} />
+                ) : agentMode === "local" ? (
                     <CanvasLocalAgentPanel
                         embedded
                         snapshot={snapshot}

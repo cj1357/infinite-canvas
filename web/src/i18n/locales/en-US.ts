@@ -129,6 +129,18 @@ export const enUS = {
     "admin.generations.refundConfirm": "Mark this generation run as failed and trigger a failed-generation refund?",
     "admin.generations.retrySuccess": "Queued again",
     "admin.generations.refundSuccess": "Refund triggered",
+    "creativeAgent.title": "Product Agent",
+    "creativeAgent.description": "Organize references, assets, and generation plans inside the product. Write actions require confirmation.",
+    "creativeAgent.sessionTitle": "Creative Agent",
+    "creativeAgent.referenceSetTitle": "Agent reference set",
+    "creativeAgent.empty": "Select nodes bound to cloud media, then ask the Agent to organize a reference set.",
+    "creativeAgent.placeholder": "For example: organize the selected images as subject, style, and composition references",
+    "creativeAgent.pendingCount": "{count} suggestions awaiting confirmation",
+    "creativeAgent.apply": "Apply suggestion",
+    "creativeAgent.applySuccess": "Wrote {count} reference intents",
+    "creativeAgent.toolReady": "Tool is ready",
+    "creativeAgent.suggestReferenceIntents": "Reference intent suggestions",
+    "creativeAgent.listCanvasNodes": "Canvas state",
 } as const;
 
 export type EnUSMessageKey = keyof typeof enUS;

@@ -161,3 +161,34 @@ type GenerationJob struct {
 	RequestJSON     datatypes.JSON `json:"requestJson" gorm:"type:jsonb;not null;default:'{}'"`
 	ResponseJSON    datatypes.JSON `json:"responseJson" gorm:"type:jsonb;not null;default:'{}'"`
 }
+
+type AgentSession struct {
+	BaseModel
+	UserID       string         `json:"userId" gorm:"index;size:36;not null"`
+	ProjectID    string         `json:"projectId" gorm:"index;size:36"`
+	Title        string         `json:"title" gorm:"size:160;not null"`
+	Locale       string         `json:"locale" gorm:"index;size:20"`
+	Status       string         `json:"status" gorm:"index;size:30;not null;default:active"`
+	MetadataJSON datatypes.JSON `json:"metadataJson" gorm:"type:jsonb;not null;default:'{}'"`
+}
+
+type AgentMessage struct {
+	BaseModel
+	UserID       string         `json:"userId" gorm:"index;size:36;not null"`
+	SessionID    string         `json:"sessionId" gorm:"index;size:36;not null"`
+	Role         string         `json:"role" gorm:"index;size:30;not null"`
+	Content      string         `json:"content" gorm:"type:text"`
+	MetadataJSON datatypes.JSON `json:"metadataJson" gorm:"type:jsonb;not null;default:'{}'"`
+}
+
+type AgentToolCall struct {
+	BaseModel
+	UserID               string         `json:"userId" gorm:"index;size:36;not null"`
+	SessionID            string         `json:"sessionId" gorm:"index;size:36;not null"`
+	ToolName             string         `json:"toolName" gorm:"index;size:80;not null"`
+	InputJSON            datatypes.JSON `json:"inputJson" gorm:"type:jsonb;not null;default:'{}'"`
+	OutputJSON           datatypes.JSON `json:"outputJson" gorm:"type:jsonb;not null;default:'{}'"`
+	Status               string         `json:"status" gorm:"index;size:30;not null;default:pending"`
+	RequiresConfirmation bool           `json:"requiresConfirmation" gorm:"index;not null;default:true"`
+	AppliedAt            *time.Time     `json:"appliedAt" gorm:"index"`
+}

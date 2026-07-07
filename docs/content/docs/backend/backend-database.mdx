@@ -38,6 +38,12 @@ SaaS 后端使用 PostgreSQL，当前由 GORM AutoMigrate 创建表。所有用�
 
 `generation_logs` 是当前旧生成记录接口仍在使用的过渡表；新的生成主路径使用 `generation_runs`、`generation_outputs` 和 `generation_jobs`。
 
+## 产品 Agent
+
+- `agent_sessions`：产品内 Creative Agent 会话，关联用户和画布项目，保存标题、语言、状态和扩展 JSON。
+- `agent_messages`：Agent 会话消息，保存用户、会话、角色、内容和扩展 JSON。
+- `agent_tool_calls`：Agent 工具调用审计，保存工具名、输入 JSON、输出 JSON、状态、是否需要用户确认和实际应用时间。当前写入型建议必须由用户确认后，再通过正常 ReferenceSet / ReferenceIntent API 落库。
+
 ## 额度
 
 - `user_credit_accounts`：用户当前权益账户，包含总余额、5 小时限额、7 天周期限额、周期开始结束、短窗重置点、套餐和有效期。

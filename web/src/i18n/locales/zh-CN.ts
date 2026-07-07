@@ -129,6 +129,18 @@ export const zhCN = {
     "admin.generations.refundConfirm": "确认将这个生成运行标记失败并触发失败退款？",
     "admin.generations.retrySuccess": "已重新排队",
     "admin.generations.refundSuccess": "已触发退款",
+    "creativeAgent.title": "产品 Agent",
+    "creativeAgent.description": "在项目内整理参考图、素材和生成计划；所有写入动作都需要你确认。",
+    "creativeAgent.sessionTitle": "创作 Agent",
+    "creativeAgent.referenceSetTitle": "Agent 参考图组",
+    "creativeAgent.empty": "选择已绑定云端媒体的节点，然后让 Agent 帮你整理参考图组。",
+    "creativeAgent.placeholder": "例如：把选中的图整理成主体、风格和构图参考",
+    "creativeAgent.pendingCount": "{count} 个建议等待确认",
+    "creativeAgent.apply": "应用建议",
+    "creativeAgent.applySuccess": "已写入 {count} 个参考意图",
+    "creativeAgent.toolReady": "工具已准备好",
+    "creativeAgent.suggestReferenceIntents": "参考意图建议",
+    "creativeAgent.listCanvasNodes": "画布状态",
 } as const;
 
 export type ZhCNMessageKey = keyof typeof zhCN;
