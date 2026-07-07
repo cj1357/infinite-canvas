@@ -1,0 +1,26 @@
+export const enUS = {
+    "common.loading": "Loading",
+    "common.retry": "Retry",
+    "common.cancel": "Cancel",
+    "common.confirm": "Confirm",
+    "common.save": "Save",
+    "common.refresh": "Refresh",
+    "error.default": "Request failed",
+    "error.quota.insufficient": "Insufficient credits",
+    "error.gateway.timeout": "Model gateway request timed out",
+    "error.gateway.auth_failed": "Model gateway authentication failed",
+    "error.gateway.model_unavailable": "Model is unavailable",
+    "error.storage.failed": "Failed to save media",
+    "reference.role.subject": "Subject consistency",
+    "reference.role.style": "Style reference",
+    "reference.role.composition": "Composition reference",
+    "reference.role.element": "Element reference",
+    "generation.status.queued": "Queued",
+    "generation.status.running": "Generating",
+    "generation.status.succeeded": "Completed",
+    "generation.status.failed": "Failed",
+    "generation.status.canceled": "Canceled",
+    "generation.status.retrying": "Retrying",
+} as const;
+
+export type EnUSMessageKey = keyof typeof enUS;

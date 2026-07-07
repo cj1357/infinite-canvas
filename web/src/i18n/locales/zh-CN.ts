@@ -1,0 +1,26 @@
+export const zhCN = {
+    "common.loading": "加载中",
+    "common.retry": "重试",
+    "common.cancel": "取消",
+    "common.confirm": "确认",
+    "common.save": "保存",
+    "common.refresh": "刷新",
+    "error.default": "请求失败",
+    "error.quota.insufficient": "额度不足",
+    "error.gateway.timeout": "模型网关请求超时",
+    "error.gateway.auth_failed": "模型网关鉴权失败",
+    "error.gateway.model_unavailable": "模型暂不可用",
+    "error.storage.failed": "媒体保存失败",
+    "reference.role.subject": "主体一致",
+    "reference.role.style": "风格参考",
+    "reference.role.composition": "构图参考",
+    "reference.role.element": "局部元素",
+    "generation.status.queued": "排队中",
+    "generation.status.running": "生成中",
+    "generation.status.succeeded": "已完成",
+    "generation.status.failed": "生成失败",
+    "generation.status.canceled": "已取消",
+    "generation.status.retrying": "重试中",
+} as const;
+
+export type ZhCNMessageKey = keyof typeof zhCN;

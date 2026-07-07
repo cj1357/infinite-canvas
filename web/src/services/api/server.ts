@@ -6,6 +6,7 @@ export type ServerResponse<T> = {
     code: number;
     data?: T;
     msg: string;
+    errorKey?: string;
 };
 
 export type ListResult<T> = {
@@ -64,6 +65,18 @@ export function serverAIHeaders(contentType?: string) {
     return contentType ? { "Content-Type": contentType } : {};
 }
 
+export class ServerApiError extends Error {
+    constructor(
+        public errorKey: string,
+        message: string,
+        public status: number,
+        public data?: unknown,
+    ) {
+        super(message);
+        this.name = "ServerApiError";
+    }
+}
+
 export async function serverRequest<T>(path: string, init?: RequestInit): Promise<T> {
     const response = await fetch(`${SERVER_API_PREFIX}${path}`, {
         ...init,
@@ -75,7 +88,7 @@ export async function serverRequest<T>(path: string, init?: RequestInit): Promis
     });
     const payload = (await response.json().catch(() => null)) as ServerResponse<T> | null;
     if (!response.ok || !payload || payload.code !== 0) {
-        throw new Error(payload?.msg || `请求失败：${response.status}`);
+        throw new ServerApiError(payload?.errorKey || payload?.msg || "error.default", payload?.msg || `请求失败：${response.status}`, response.status, payload?.data);
     }
     return payload.data as T;
 }

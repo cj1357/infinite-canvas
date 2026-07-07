@@ -9,9 +9,10 @@ import (
 )
 
 type Response struct {
-	Code int    `json:"code"`
-	Data any    `json:"data,omitempty"`
-	Msg  string `json:"msg"`
+	Code     int    `json:"code"`
+	Data     any    `json:"data,omitempty"`
+	Msg      string `json:"msg"`
+	ErrorKey string `json:"errorKey,omitempty"`
 }
 
 func OK(c *gin.Context, data any) {
@@ -19,10 +20,17 @@ func OK(c *gin.Context, data any) {
 }
 
 func Fail(c *gin.Context, status int, msg string) {
+	FailKey(c, status, msg, msg)
+}
+
+func FailKey(c *gin.Context, status int, errorKey string, msg string) {
 	if msg == "" {
 		msg = http.StatusText(status)
 	}
-	c.JSON(status, Response{Code: status, Msg: msg})
+	if errorKey == "" {
+		errorKey = msg
+	}
+	c.JSON(status, Response{Code: status, Msg: msg, ErrorKey: errorKey})
 }
 
 func Error(c *gin.Context, err error) {
