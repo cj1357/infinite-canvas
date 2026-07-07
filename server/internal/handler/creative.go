@@ -90,6 +90,11 @@ func (h *CreativeHandler) GetGenerationRun(c *gin.Context) {
 	writeResult(c, result, err)
 }
 
+func (h *CreativeHandler) GetGenerationRunDetail(c *gin.Context) {
+	result, err := h.generation.GetGenerationRunDetail(middleware.CurrentUser(c).ID, c.Param("id"))
+	writeResult(c, result, err)
+}
+
 func (h *CreativeHandler) GetGenerationJob(c *gin.Context) {
 	result, err := h.generation.GetGenerationJob(middleware.CurrentUser(c).ID, c.Param("id"))
 	writeResult(c, result, err)

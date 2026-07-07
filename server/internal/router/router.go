@@ -88,6 +88,7 @@ func New(repo *repository.Repository, store storage.Store, cfg config.Config) *g
 	protected.PATCH("/reference-intents/:id", creativeHandler.UpdateReferenceIntent)
 	protected.POST("/generation-runs", creativeHandler.CreateGenerationRun)
 	protected.GET("/generation-runs/:id", creativeHandler.GetGenerationRun)
+	protected.GET("/generation-runs/:id/detail", creativeHandler.GetGenerationRunDetail)
 	protected.GET("/generation-jobs/:id", creativeHandler.GetGenerationJob)
 	protected.POST("/generation-runs/:id/retry", creativeHandler.RetryGenerationRun)
 	protected.POST("/generation-runs/:id/cancel", creativeHandler.CancelGenerationRun)

@@ -16,6 +16,7 @@ import (
 	"infinite-canvas/server/internal/repository"
 
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
 )
 
 type GenerationService struct {
@@ -35,6 +36,12 @@ type GenerationRunInput struct {
 	Model          string         `json:"model"`
 	Prompt         string         `json:"prompt"`
 	Params         map[string]any `json:"params"`
+}
+
+type GenerationRunDetail struct {
+	Run     model.GenerationRun      `json:"run"`
+	Job     *model.GenerationJob     `json:"job,omitempty"`
+	Outputs []model.GenerationOutput `json:"outputs"`
 }
 
 func NewGenerationService(repo *repository.Repository, billing *BillingService, references *ReferenceService, gateway *ModelGatewayService, media *MediaObjectService) *GenerationService {
@@ -109,6 +116,25 @@ func (s *GenerationService) CreateGenerationRun(ctx context.Context, userID stri
 
 func (s *GenerationService) GetGenerationRun(userID string, id string) (model.GenerationRun, error) {
 	return s.repo.GetGenerationRun(userID, id)
+}
+
+func (s *GenerationService) GetGenerationRunDetail(userID string, id string) (GenerationRunDetail, error) {
+	run, err := s.repo.GetGenerationRun(userID, id)
+	if err != nil {
+		return GenerationRunDetail{}, err
+	}
+	outputs, err := s.repo.ListGenerationOutputs(userID, id)
+	if err != nil {
+		return GenerationRunDetail{}, err
+	}
+	job, err := s.repo.GetLatestGenerationJobByRun(userID, id)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return GenerationRunDetail{Run: run, Outputs: outputs}, nil
+	}
+	if err != nil {
+		return GenerationRunDetail{}, err
+	}
+	return GenerationRunDetail{Run: run, Job: &job, Outputs: outputs}, nil
 }
 
 func (s *GenerationService) GetGenerationJob(userID string, id string) (model.GenerationJob, error) {

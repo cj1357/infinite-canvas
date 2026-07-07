@@ -217,6 +217,12 @@ func (r *Repository) GetGenerationJob(userID string, id string) (model.Generatio
 	return item, err
 }
 
+func (r *Repository) GetLatestGenerationJobByRun(userID string, generationRunID string) (model.GenerationJob, error) {
+	var item model.GenerationJob
+	err := r.DB.Where("user_id = ? AND generation_run_id = ?", userID, generationRunID).Order("created_at DESC").First(&item).Error
+	return item, err
+}
+
 func (r *Repository) AdminGetGenerationJob(id string) (model.GenerationJob, error) {
 	var item model.GenerationJob
 	err := r.DB.First(&item, "id = ?", id).Error

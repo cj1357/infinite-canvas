@@ -154,6 +154,12 @@ export type GenerationOutput = {
     note: string;
 };
 
+export type GenerationRunDetail = {
+    run: GenerationRun;
+    job?: GenerationJob;
+    outputs: GenerationOutput[];
+};
+
 export type CreateGenerationRunInput = {
     projectId?: string;
     referenceSetId: string;
@@ -253,6 +259,10 @@ export function createGenerationRun(input: CreateGenerationRunInput) {
 
 export function getGenerationRun(id: string) {
     return serverRequest<GenerationRun>(`/generation-runs/${id}`);
+}
+
+export function getGenerationRunDetail(id: string) {
+    return serverRequest<GenerationRunDetail>(`/generation-runs/${id}/detail`);
 }
 
 export function getGenerationJob(id: string) {

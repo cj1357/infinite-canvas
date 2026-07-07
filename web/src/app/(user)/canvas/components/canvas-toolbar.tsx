@@ -1,7 +1,7 @@
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from "react";
 import { useRef, useState } from "react";
 import { Button, Segmented, Switch } from "antd";
-import { CircleDot, Eraser, FolderOpen, Grid2x2, Hand, Image as ImageIcon, Images, Info, Moon, Music2, Palette, Redo2, Settings2, Square, Sun, Trash2, Type, Undo2, Upload, Video } from "lucide-react";
+import { Bot, CircleDot, Eraser, FolderOpen, Grid2x2, Hand, Image as ImageIcon, Images, Info, Moon, Music2, Palette, Redo2, Settings2, Square, Sun, Trash2, Type, Undo2, Upload, Video } from "lucide-react";
 
 import { canvasThemes, type CanvasBackgroundMode, type CanvasColorTheme, type CanvasTheme } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
@@ -18,6 +18,7 @@ export function CanvasToolbar({
     onAddAudio,
     onAddText,
     onAddReferenceSet,
+    onAddGeneration,
     onAddConfig,
     onUndo,
     onRedo,
@@ -39,6 +40,7 @@ export function CanvasToolbar({
     onAddAudio: () => void;
     onAddText: () => void;
     onAddReferenceSet: () => void;
+    onAddGeneration: () => void;
     onAddConfig: () => void;
     onUndo: () => void;
     onRedo: () => void;
@@ -91,6 +93,9 @@ export function CanvasToolbar({
                 </ToolbarButton>
                 <ToolbarButton id="tool-reference" label="参考图组" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddReferenceSet}>
                     <Images className="size-4.5" />
+                </ToolbarButton>
+                <ToolbarButton id="tool-generation" label="生成任务" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddGeneration}>
+                    <Bot className="size-4.5" />
                 </ToolbarButton>
                 <ToolbarButton id="tool-config" label="生成配置" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddConfig}>
                     <Settings2 className="size-4.5" />
@@ -286,6 +291,7 @@ function toolLabel(id: string) {
     if (id === "tool-video") return "视频";
     if (id === "tool-audio") return "音频";
     if (id === "tool-reference") return "参考图组";
+    if (id === "tool-generation") return "生成任务";
     if (id === "tool-config") return "生成配置";
     if (id === "tool-upload") return "上传素材";
     if (id === "tool-assets") return "我的素材";
