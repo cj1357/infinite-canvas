@@ -14,11 +14,11 @@ import (
 
 type AIHandler struct {
 	billing *service.BillingService
-	newapi  *service.NewAPIService
+	gateway *service.ModelGatewayService
 }
 
-func NewAIHandler(billing *service.BillingService, newapi *service.NewAPIService) *AIHandler {
-	return &AIHandler{billing: billing, newapi: newapi}
+func NewAIHandler(billing *service.BillingService, gateway *service.ModelGatewayService) *AIHandler {
+	return &AIHandler{billing: billing, gateway: gateway}
 }
 
 func (h *AIHandler) ProxyPost(ability string, upstreamPath string) gin.HandlerFunc {
@@ -29,13 +29,13 @@ func (h *AIHandler) ProxyPost(ability string, upstreamPath string) gin.HandlerFu
 			httpx.Fail(c, http.StatusBadRequest, "读取请求失败")
 			return
 		}
-		estimateReq := h.newapi.ExtractEstimateRequest(ability, c.GetHeader("Content-Type"), body)
+		estimateReq := h.gateway.ExtractEstimateRequest(ability, c.GetHeader("Content-Type"), body)
 		usage, err := h.billing.Reserve(c.Request.Context(), user.ID, estimateReq)
 		if err != nil {
 			httpx.Fail(c, http.StatusPaymentRequired, err.Error())
 			return
 		}
-		resp, err := h.newapi.Proxy(c.Request.Context(), http.MethodPost, upstreamPath, c.Request.Header, body)
+		resp, err := h.gateway.Proxy(c.Request.Context(), http.MethodPost, upstreamPath, c.Request.Header, body)
 		if err != nil {
 			_ = h.billing.Fail(c.Request.Context(), usage.ID, err.Error())
 			httpx.Fail(c, http.StatusBadGateway, err.Error())
@@ -66,7 +66,7 @@ func (h *AIHandler) ProxyGet(upstreamPathPrefix string) gin.HandlerFunc {
 func (h *AIHandler) ProxyGetWithSuffix(upstreamPathPrefix string, suffix string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := strings.TrimRight(upstreamPathPrefix, "/") + "/" + c.Param("id") + suffix
-		resp, err := h.newapi.Proxy(c.Request.Context(), http.MethodGet, path, c.Request.Header, nil)
+		resp, err := h.gateway.Proxy(c.Request.Context(), http.MethodGet, path, c.Request.Header, nil)
 		if err != nil {
 			httpx.Fail(c, http.StatusBadGateway, err.Error())
 			return

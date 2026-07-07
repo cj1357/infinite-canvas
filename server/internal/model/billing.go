@@ -154,8 +154,11 @@ type PaymentEvent struct {
 
 type NewAPIConfig struct {
 	BaseModel
-	Name    string `json:"name" gorm:"uniqueIndex;size:60;not null;default:default"`
-	BaseURL string `json:"baseUrl" gorm:"size:500;not null"`
-	Token   string `json:"-" gorm:"type:text"`
-	Enabled bool  `json:"enabled" gorm:"not null;default:true"`
+	Name           string `json:"name" gorm:"uniqueIndex;size:60;not null;default:default"`
+	Provider       string `json:"provider" gorm:"index;size:40;not null;default:newapi"`
+	BaseURL        string `json:"baseUrl" gorm:"size:500;not null"`
+	InternalURL    string `json:"internalUrl" gorm:"size:500"`
+	Token          string `json:"-" gorm:"type:text"`
+	TimeoutSeconds int    `json:"timeoutSeconds" gorm:"not null;default:600"`
+	Enabled        bool   `json:"enabled" gorm:"not null;default:true"`
 }

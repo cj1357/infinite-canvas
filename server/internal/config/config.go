@@ -17,8 +17,11 @@ type Config struct {
 	SessionTTL          time.Duration
 	CORSOrigins         []string
 	BootstrapAdminEmail string
-	NewAPIBaseURL       string
-	NewAPIToken         string
+	ModelGatewayProvider string
+	ModelGatewayBaseURL string
+	ModelGatewayInternalURL string
+	ModelGatewayToken string
+	ModelGatewayTimeout time.Duration
 	StorageProvider     string
 	MaxUploadBytes      int64
 	Storage             StorageConfig
@@ -37,6 +40,7 @@ type StorageConfig struct {
 
 func Load() Config {
 	sessionDays := intEnv("SESSION_TTL_DAYS", 30)
+	gatewayTimeoutSeconds := intEnv("MODEL_GATEWAY_TIMEOUT_SECONDS", 600)
 	storageProvider := strings.ToLower(env("STORAGE_PROVIDER", "local"))
 	maxUploadBytes := int64Env("MAX_UPLOAD_BYTES", 50*1024*1024)
 	return Config{
@@ -49,8 +53,11 @@ func Load() Config {
 		SessionTTL:          time.Duration(sessionDays) * 24 * time.Hour,
 		CORSOrigins:         csvEnv("CORS_ORIGINS"),
 		BootstrapAdminEmail: strings.ToLower(strings.TrimSpace(env("BOOTSTRAP_ADMIN_EMAIL", ""))),
-		NewAPIBaseURL:       strings.TrimRight(env("NEWAPI_BASE_URL", ""), "/"),
-		NewAPIToken:         env("NEWAPI_TOKEN", ""),
+		ModelGatewayProvider: strings.ToLower(env("MODEL_GATEWAY_PROVIDER", "newapi")),
+		ModelGatewayBaseURL: strings.TrimRight(env("MODEL_GATEWAY_BASE_URL", ""), "/"),
+		ModelGatewayInternalURL: strings.TrimRight(env("MODEL_GATEWAY_INTERNAL_URL", ""), "/"),
+		ModelGatewayToken: env("MODEL_GATEWAY_TOKEN", ""),
+		ModelGatewayTimeout: time.Duration(gatewayTimeoutSeconds) * time.Second,
 		StorageProvider:     storageProvider,
 		MaxUploadBytes:      maxUploadBytes,
 		Storage: StorageConfig{

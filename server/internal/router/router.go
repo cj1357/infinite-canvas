@@ -25,15 +25,15 @@ func New(repo *repository.Repository, store storage.Store, cfg config.Config) *g
 	billingService := service.NewBillingService(repo)
 	dataService := service.NewDataService(repo)
 	mediaService := service.NewMediaObjectService(repo, store, cfg.Storage)
-	newapiService := service.NewNewAPIService(repo, cfg)
-	adminService := service.NewAdminService(repo, newapiService)
+	gatewayService := service.NewModelGatewayService(repo, cfg)
+	adminService := service.NewAdminService(repo, gatewayService)
 
 	authHandler := handler.NewAuthHandler(authService, cfg)
 	dataHandler := handler.NewDataHandler(dataService)
 	mediaHandler := handler.NewMediaHandler(mediaService)
 	billingHandler := handler.NewBillingHandler(billingService)
 	adminHandler := handler.NewAdminHandler(adminService)
-	aiHandler := handler.NewAIHandler(billingService, newapiService)
+	aiHandler := handler.NewAIHandler(billingService, gatewayService)
 	authMiddleware := middleware.NewAuthMiddleware(authService, cfg.CookieName)
 
 	api := r.Group("/api/server")
@@ -89,9 +89,9 @@ func New(repo *repository.Repository, store storage.Store, cfg config.Config) *g
 	admin.GET("/model-rate-rules", billingHandler.ListRateRules)
 	admin.POST("/model-rate-rules", billingHandler.CreateRateRule)
 	admin.PATCH("/model-rate-rules/:id", billingHandler.UpdateRateRule)
-	admin.GET("/newapi-config", adminHandler.GetNewAPIConfig)
-	admin.POST("/newapi-config", adminHandler.SaveNewAPIConfig)
-	admin.PATCH("/newapi-config", adminHandler.SaveNewAPIConfig)
+	admin.GET("/model-gateway", adminHandler.GetModelGateway)
+	admin.PATCH("/model-gateway", adminHandler.SaveModelGateway)
+	admin.POST("/model-gateway/test", adminHandler.TestModelGateway)
 
 	return r
 }

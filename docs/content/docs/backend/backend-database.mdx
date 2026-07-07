@@ -57,6 +57,6 @@ SaaS 后端使用 PostgreSQL，当前由 GORM AutoMigrate 创建表。所有用�
 
 ## 平台配置
 
-- `new_api_configs`：NewAPI Base URL、平台 token 和启用状态。接口返回配置时不会返回 token 明文，只返回 `hasToken`。
+- `new_api_configs`：模型网关配置，当前 provider 使用 `newapi`，保存外部 Base URL、内部 Base URL、平台 token、超时秒数和启用状态。接口返回配置时不会返回 token 明文，只返回 `hasToken`。
 - `model_capabilities`：模型能力配置，保存模型、能力、模型家族、最大参考图数量、最大输出数量、支持比例、分辨率、种子、遮罩、裁剪参考、透明背景、推荐参考角色和扩展 JSON。
 - `prompt_templates`：Prompt 编译模板，按语言、模板 key、能力、模型家族和版本区分，保存标题、模板内容、变量定义和启用状态。

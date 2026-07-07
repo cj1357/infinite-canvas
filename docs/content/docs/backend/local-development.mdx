@@ -5,7 +5,7 @@ description: 前端与 SaaS 后端的本地开发方式
 
 # 本地开发
 
-当前主应用仍保留未登录本地模式：画布、素材和 AI API Key 默认在浏览器本地。`saas/multi-user` 分支新增了 `server/` 后端，登录后 AI 请求会走后端 NewAPI 代理和额度系统。
+当前主应用仍保留未登录本地模式：画布、素材和 AI API Key 默认在浏览器本地。`saas/multi-user` 分支新增了 `server/` 后端，登录后 AI 请求会走后端模型网关代理和额度系统。
 
 ## 1. 启动前端
 
@@ -39,8 +39,11 @@ go run ./cmd/api
 ```env
 SERVER_ADDR=:8085
 DATABASE_URL=postgres://infinite_canvas:infinite_canvas@localhost:5432/infinite_canvas?sslmode=disable
-NEWAPI_BASE_URL=https://你的-newapi-域名/v1
-NEWAPI_TOKEN=你的平台 token
+MODEL_GATEWAY_PROVIDER=newapi
+MODEL_GATEWAY_BASE_URL=https://你的-newapi-域名/v1
+MODEL_GATEWAY_INTERNAL_URL=
+MODEL_GATEWAY_TOKEN=你的平台 token
+MODEL_GATEWAY_TIMEOUT_SECONDS=600
 STORAGE_PROVIDER=local
 LOCAL_STORAGE_DIR=data/media
 ```
@@ -62,6 +65,6 @@ bun run dev
 ## 常见场景
 
 - 改画布、页面和交互：主要看 `web/`
-- 改账号、额度、后台、媒体和 NewAPI 代理：主要看 `server/`
+- 改账号、额度、后台、媒体和模型网关代理：主要看 `server/`
 - 改提示词缓存或 WebDAV 代理：主要看 `web/src/app/api/` 和 `web/src/app/webdav-proxy/`
 - 改文档站内容：主要看 `docs/content/docs/`

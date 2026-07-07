@@ -10,7 +10,7 @@ description: 多账号版本在 VPS、1Panel、OpenResty 和 Cloudflare 上的�
 ## 服务组成
 
 - `web`：Next.js 前端，未登录时仍支持本地模式，登录后 AI 请求走 `/api/server/ai/*`。
-- `server`：Go + Gin + GORM 后端，负责账号、session、额度、后台、媒体和 NewAPI 代理。
+- `server`：Go + Gin + GORM 后端，负责账号、session、额度、后台、媒体和模型网关代理。
 - `postgres`：使用 1Panel 已有 PostgreSQL，保存账号、云端数据、额度、流水和支付预留表。
 - Cloudflare R2：生产环境建议保存图片、视频和音频媒体文件。
 
@@ -26,8 +26,11 @@ VPS / 1Panel 可以直接使用根目录 `docker-compose.yml`，并在环境变�
 
 ```env
 DATABASE_URL=postgres://ic_user:你的密码@1Panel-postgresql-NamW:5432/infinite_canvas?sslmode=disable
-NEWAPI_BASE_URL=https://你的-newapi-域名/v1
-NEWAPI_TOKEN=你的平台 token
+MODEL_GATEWAY_PROVIDER=newapi
+MODEL_GATEWAY_BASE_URL=https://你的-newapi-域名/v1
+MODEL_GATEWAY_INTERNAL_URL=
+MODEL_GATEWAY_TOKEN=你的平台 token
+MODEL_GATEWAY_TIMEOUT_SECONDS=600
 STORAGE_PROVIDER=r2
 R2_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
 R2_ACCESS_KEY_ID=...
@@ -80,4 +83,4 @@ location / {
 
 ## 当前边界
 
-当前版本已经具备后端表结构、账号接口、额度事务、后台手动开通、NewAPI 代理、媒体上传接口和账号页。画布项目、素材和生成记录的云端接口已提供，但画布现有 localforage 读写路径尚未整体切换；未登录模式仍是浏览器本地数据。
+当前版本已经具备后端表结构、账号接口、额度事务、后台手动开通、模型网关代理、媒体上传接口和账号页。画布项目、素材和生成记录的云端接口已提供，但画布现有 localforage 读写路径尚未整体切换；未登录模式仍是浏览器本地数据。
