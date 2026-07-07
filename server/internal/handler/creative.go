@@ -10,10 +10,11 @@ import (
 
 type CreativeHandler struct {
 	references *service.ReferenceService
+	generation *service.GenerationService
 }
 
-func NewCreativeHandler(references *service.ReferenceService) *CreativeHandler {
-	return &CreativeHandler{references: references}
+func NewCreativeHandler(references *service.ReferenceService, generation *service.GenerationService) *CreativeHandler {
+	return &CreativeHandler{references: references, generation: generation}
 }
 
 func (h *CreativeHandler) ListReferenceSets(c *gin.Context) {
@@ -73,4 +74,33 @@ func (h *CreativeHandler) CompileReferenceSetPreview(c *gin.Context) {
 		return
 	}
 	httpx.OK(c, result)
+}
+
+func (h *CreativeHandler) CreateGenerationRun(c *gin.Context) {
+	var req service.GenerationRunInput
+	if !bindJSON(c, &req) {
+		return
+	}
+	result, err := h.generation.CreateGenerationRun(c.Request.Context(), middleware.CurrentUser(c).ID, req)
+	writeResult(c, result, err)
+}
+
+func (h *CreativeHandler) GetGenerationRun(c *gin.Context) {
+	result, err := h.generation.GetGenerationRun(middleware.CurrentUser(c).ID, c.Param("id"))
+	writeResult(c, result, err)
+}
+
+func (h *CreativeHandler) GetGenerationJob(c *gin.Context) {
+	result, err := h.generation.GetGenerationJob(middleware.CurrentUser(c).ID, c.Param("id"))
+	writeResult(c, result, err)
+}
+
+func (h *CreativeHandler) RetryGenerationRun(c *gin.Context) {
+	result, err := h.generation.RetryGenerationRun(c.Request.Context(), middleware.CurrentUser(c).ID, c.Param("id"))
+	writeResult(c, result, err)
+}
+
+func (h *CreativeHandler) CancelGenerationRun(c *gin.Context) {
+	result, err := h.generation.CancelGenerationRun(c.Request.Context(), middleware.CurrentUser(c).ID, c.Param("id"))
+	writeResult(c, result, err)
 }

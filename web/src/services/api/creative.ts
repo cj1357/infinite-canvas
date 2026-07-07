@@ -64,6 +64,59 @@ export type CompileReferenceSetPreviewOutput = {
     enabledReferences: ReferenceIntent[];
 };
 
+export type GenerationRun = {
+    id: string;
+    userId: string;
+    projectId: string;
+    referenceSetId: string;
+    parentRunId: string;
+    ability: string;
+    model: string;
+    prompt: string;
+    compiledPrompt: string;
+    status: string;
+    reservedCredits: number;
+    settledCredits: number;
+    usageId: string;
+    errorKey: string;
+    errorMessage: string;
+};
+
+export type GenerationJob = {
+    id: string;
+    userId: string;
+    generationRunId: string;
+    status: string;
+    ability: string;
+    priority: number;
+    attempt: number;
+    maxAttempts: number;
+    errorKey: string;
+    errorMessage: string;
+};
+
+export type GenerationOutput = {
+    id: string;
+    userId: string;
+    generationRunId: string;
+    mediaObjectId: string;
+    canvasNodeId: string;
+    status: string;
+    rating: number;
+    selected: boolean;
+    note: string;
+};
+
+export type CreateGenerationRunInput = {
+    projectId?: string;
+    referenceSetId: string;
+    parentRunId?: string;
+    ability: string;
+    model: string;
+    prompt: string;
+    params?: Record<string, unknown>;
+};
+
 export function listReferenceSets(params = new URLSearchParams()) {
     const query = params.toString();
     return serverRequest<ListResult<ReferenceSet>>(`/reference-sets${query ? `?${query}` : ""}`);
@@ -91,4 +144,24 @@ export function updateReferenceIntent(id: string, input: Partial<ReferenceIntent
 
 export function compileReferenceSetPreview(referenceSetId: string, input: CompileReferenceSetPreviewInput) {
     return serverRequest<CompileReferenceSetPreviewOutput>(`/reference-sets/${referenceSetId}/compile-preview`, { method: "POST", body: JSON.stringify(input) });
+}
+
+export function createGenerationRun(input: CreateGenerationRunInput) {
+    return serverRequest<GenerationRun>("/generation-runs", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function getGenerationRun(id: string) {
+    return serverRequest<GenerationRun>(`/generation-runs/${id}`);
+}
+
+export function getGenerationJob(id: string) {
+    return serverRequest<GenerationJob>(`/generation-jobs/${id}`);
+}
+
+export function retryGenerationRun(id: string) {
+    return serverRequest<GenerationJob>(`/generation-runs/${id}/retry`, { method: "POST" });
+}
+
+export function cancelGenerationRun(id: string) {
+    return serverRequest<GenerationRun>(`/generation-runs/${id}/cancel`, { method: "POST" });
 }

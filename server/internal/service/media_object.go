@@ -46,13 +46,30 @@ func (s *MediaObjectService) Upload(ctx context.Context, userID string, header *
 	sum := sha256.Sum256(data)
 	sha := hex.EncodeToString(sum[:])
 	mimeType := detectMimeType(header, data)
+	return s.SaveBytes(ctx, userID, mediaKindFromMime(mimeType), header.Filename, mimeType, data, sha)
+}
+
+func (s *MediaObjectService) SaveBytes(ctx context.Context, userID string, kind string, filename string, mimeType string, data []byte, sha string) (model.MediaObject, error) {
+	if len(data) == 0 {
+		return model.MediaObject{}, errors.New("媒体内容不能为空")
+	}
+	if sha == "" {
+		sum := sha256.Sum256(data)
+		sha = hex.EncodeToString(sum[:])
+	}
+	if mimeType == "" {
+		mimeType = http.DetectContentType(data)
+	}
+	if kind == "" {
+		kind = mediaKindFromMime(mimeType)
+	}
 	mediaID := uuid.NewString()
-	objectKey := mediaObjectKey(userID, mediaID, sha, header.Filename, mimeType)
+	objectKey := mediaObjectKey(userID, mediaID, sha, filename, mimeType)
 	width, height := imageSize(data)
 	item := model.MediaObject{
 		BaseModel:   model.BaseModel{ID: mediaID},
 		UserID:      userID,
-		Kind:        mediaKindFromMime(mimeType),
+		Kind:        kind,
 		StorageKey:  objectKey,
 		ObjectKey:   objectKey,
 		MimeType:    mimeType,

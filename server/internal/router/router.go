@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	"net/http"
 
 	"infinite-canvas/server/internal/config"
@@ -27,13 +28,17 @@ func New(repo *repository.Repository, store storage.Store, cfg config.Config) *g
 	mediaService := service.NewMediaObjectService(repo, store, cfg.Storage)
 	referenceService := service.NewReferenceService(repo)
 	gatewayService := service.NewModelGatewayService(repo, cfg)
+	generationService := service.NewGenerationService(repo, billingService, referenceService, gatewayService, mediaService)
 	promptTemplateService := service.NewPromptTemplateService(repo)
 	adminService := service.NewAdminService(repo, gatewayService, promptTemplateService)
+	if cfg.WorkerEnabled {
+		service.NewJobWorker(repo, generationService, cfg).Start(context.Background())
+	}
 
 	authHandler := handler.NewAuthHandler(authService, cfg)
 	dataHandler := handler.NewDataHandler(dataService)
 	mediaHandler := handler.NewMediaHandler(mediaService)
-	creativeHandler := handler.NewCreativeHandler(referenceService)
+	creativeHandler := handler.NewCreativeHandler(referenceService, generationService)
 	billingHandler := handler.NewBillingHandler(billingService)
 	adminHandler := handler.NewAdminHandler(adminService)
 	aiHandler := handler.NewAIHandler(billingService, gatewayService)
@@ -81,6 +86,11 @@ func New(repo *repository.Repository, store storage.Store, cfg config.Config) *g
 	protected.POST("/reference-sets/:id/intents", creativeHandler.CreateReferenceIntent)
 	protected.POST("/reference-sets/:id/compile-preview", creativeHandler.CompileReferenceSetPreview)
 	protected.PATCH("/reference-intents/:id", creativeHandler.UpdateReferenceIntent)
+	protected.POST("/generation-runs", creativeHandler.CreateGenerationRun)
+	protected.GET("/generation-runs/:id", creativeHandler.GetGenerationRun)
+	protected.GET("/generation-jobs/:id", creativeHandler.GetGenerationJob)
+	protected.POST("/generation-runs/:id/retry", creativeHandler.RetryGenerationRun)
+	protected.POST("/generation-runs/:id/cancel", creativeHandler.CancelGenerationRun)
 
 	protected.POST("/ai/images/generations", aiHandler.ProxyPost("image_generation", "/images/generations"))
 	protected.POST("/ai/images/edits", aiHandler.ProxyPost("image_edit", "/images/edits"))
