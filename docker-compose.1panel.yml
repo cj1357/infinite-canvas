@@ -1,0 +1,10 @@
+services:
+  server:
+    networks:
+      - default
+      - onepanel
+
+networks:
+  onepanel:
+    external: true
+    name: ${ONEPANEL_NETWORK:-1panel-network}

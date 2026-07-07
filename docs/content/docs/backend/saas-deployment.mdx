@@ -11,12 +11,12 @@ description: 多账号版本在 VPS、1Panel、OpenResty 和 Cloudflare 上的�
 
 - `web`：Next.js 前端，未登录时仍支持本地模式，登录后 AI 请求走 `/api/server/ai/*`。
 - `server`：Go + Gin + GORM 后端，负责账号、session、额度、后台、媒体和 NewAPI 代理。
-- `postgres`：PostgreSQL，保存账号、云端数据、额度、流水和支付预留表。
+- `postgres`：使用 1Panel 已有 PostgreSQL，保存账号、云端数据、额度、流水和支付预留表。
 - Cloudflare R2：生产环境建议保存图片、视频和音频媒体文件。
 
 ## Docker Compose
 
-根目录 `docker-compose.yml` 已包含 `web`、`server` 和 `postgres`。本地构建：
+根目录 `docker-compose.yml` 默认只启动 `web` 和 `server`，数据库使用 1Panel 已有 PostgreSQL。`docker-compose.local.yml` 才会额外启动本地测试用 PostgreSQL。
 
 ```bash
 docker compose -f docker-compose.local.yml up -d --build
@@ -25,6 +25,7 @@ docker compose -f docker-compose.local.yml up -d --build
 VPS / 1Panel 可以直接使用根目录 `docker-compose.yml`，并在环境变量里配置：
 
 ```env
+DATABASE_URL=postgres://ic_user:你的密码@1Panel-postgresql-NamW:5432/infinite_canvas?sslmode=disable
 NEWAPI_BASE_URL=https://你的-newapi-域名/v1
 NEWAPI_TOKEN=你的平台 token
 STORAGE_PROVIDER=r2
@@ -34,31 +35,48 @@ R2_SECRET_ACCESS_KEY=...
 R2_BUCKET=...
 ```
 
+建议在 1Panel PostgreSQL 里单独创建 `infinite_canvas` 数据库和独立用户，不要复用 NewAPI 的数据库。截图里的 `1Panel-postgresql-NamW:5432` 是容器连接地址，只有当前应用容器和 PostgreSQL 容器在同一个 Docker 网络时才能使用；如果网络不通，再改用 1Panel 显示的外部连接地址或把应用加入 PostgreSQL 所在网络。
+
+如果要使用 `1Panel-postgresql-NamW` 这种容器连接地址，先确认 PostgreSQL 所在网络：
+
+```bash
+docker network ls
+```
+
+1Panel 常见网络名是 `1panel-network`，可以在 `.env` 里设置：
+
+```env
+ONEPANEL_NETWORK=1panel-network
+```
+
+启动时多带一个 1Panel 网络覆盖文件：
+
+```bash
+docker compose --env-file .env -f docker-compose.yml -f docker-compose.1panel.yml up -d --build
+```
+
+如果直接使用 1Panel 的外部连接地址，例如 `161.33.3.221:5432`，则不需要加入同一个 Docker 网络，但要确保防火墙和 PostgreSQL 访问策略允许连接。
+
 如果暂时不用 R2，可以保留 `STORAGE_PROVIDER=local`，媒体会写入容器挂载的 `./data/media`。
+
+Compose 会把前端容器端口映射到宿主机 `3005`，后端容器通过 Docker 内网地址 `http://server:8080` 提供给前端 rewrite 使用。后端宿主机 `127.0.0.1:8085` 只用于本机调试或排障，不需要作为公网入口。
 
 正式 HTTPS 域名下建议设置 `SESSION_COOKIE_SECURE=true`；本地或内网 HTTP 测试时保持 `false`。
 
 ## OpenResty
 
-OpenResty 建议这样分流：
+OpenResty 默认只需要把网站转发到前端：
 
 ```nginx
 location / {
-    proxy_pass http://127.0.0.1:3000;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-}
-
-location /api/server/ {
-    proxy_pass http://127.0.0.1:8080;
+    proxy_pass http://127.0.0.1:3005;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 }
 ```
 
-如果前端和后端由 Compose 内网连接，前端镜像也内置了 `SERVER_API_URL=http://server:8080` 的 rewrite，可用于不单独配置反代的测试环境。
+前端镜像内置了 `SERVER_API_URL=http://server:8080` 的 rewrite，浏览器访问 `/api/server/*` 时会先到 Next.js，再由 Next.js 在 Docker 内网转发给 Go 后端。只有当你不想经过 Next.js rewrite、希望 OpenResty 直接分流 API 时，才需要额外配置 `/api/server/` 到 `127.0.0.1:8085`。
 
 ## 当前边界
 
