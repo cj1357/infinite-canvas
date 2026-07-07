@@ -15,5 +15,6 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 个人创作 SaaS 后端：媒体上传改为 `MediaObject` 主路径，按媒体 ID 生成 R2/local 对象路径，支持上传大小限制、MIME 探测、图片尺寸记录、按 ID 读取和删除。
 - 个人创作 SaaS 后端/前端：模型请求入口改为 `MODEL_GATEWAY_*` 配置，新增后台模型网关配置页和连接测试，应用只连接 NewAPI，OpenRouter 渠道由 NewAPI 内部管理。
 - 个人创作 SaaS 后端/前端：新增模型能力、计费规则和 Prompt 模板后台配置；计费估算支持基础额度、输出数、参考图数、分辨率倍率和质量倍率。
+- 个人创作 SaaS 后端/前端：新增 ReferenceSet 和 ReferenceIntent API，支持参考图角色、权重、排序、所有权校验和编译预览，并提供前端 typed client。
 - 多账号 SaaS 前端：新增会员账号页和后台用户页；登录后图片、文字、音频和 OpenAI 兼容视频请求会走 `/api/server/ai/*`，未登录继续使用本地直连模式。
 - Docker 部署：根目录 Compose 调整为 web、server、postgres 三服务，并预留 R2 / NewAPI 环境变量。
