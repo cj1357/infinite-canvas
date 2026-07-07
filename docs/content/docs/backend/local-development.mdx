@@ -5,7 +5,7 @@ description: 前端与 SaaS 后端的本地开发方式
 
 # 本地开发
 
-当前主应用仍保留未登录本地模式：画布、素材和 AI API Key 默认在浏览器本地。`saas/multi-user` 分支新增了 `server/` 后端，登录后 AI 请求会走后端模型网关代理和额度系统。
+当前主应用仍保留未登录本地模式：画布、部分旧素材入口和 AI API Key 可以保存在浏览器本地。`saas/multi-user` 分支新增了 `server/` 后端，登录后 AI 请求会走后端模型网关代理和额度系统；模型网关只连接 NewAPI，OpenRouter 渠道在 NewAPI 后台配置。
 
 ## 1. 启动前端
 
@@ -23,7 +23,9 @@ http://localhost:3005
 
 ## 2. 配置模型
 
-打开右上角配置弹窗，填写自己的 `Base URL`、`API Key` 和模型名。第三方提示词由 Next.js route 拉取并缓存在运行实例内存中；WebDAV 可选择前端直连或 Next.js 转发。
+未登录本地模式可以打开右上角配置弹窗，填写自己的 `Base URL`、`API Key` 和模型名。登录后的 SaaS 路径不读取浏览器里的模型 Key，而是通过 Go 后端访问 NewAPI。
+
+第三方提示词由 Next.js route 拉取并缓存在运行实例内存中；WebDAV 可选择前端直连或 Next.js 转发。
 
 ## 3. 启动后端
 
@@ -46,6 +48,10 @@ MODEL_GATEWAY_TOKEN=你的平台 token
 MODEL_GATEWAY_TIMEOUT_SECONDS=600
 STORAGE_PROVIDER=local
 LOCAL_STORAGE_DIR=data/media
+WORKER_ENABLED=false
+WORKER_CONCURRENCY=1
+WORKER_POLL_SECONDS=3
+DEFAULT_LOCALE=zh-CN
 ```
 
 前端开发时如果希望 `/api/server/*` 转发到后端，启动 `web` 前设置：

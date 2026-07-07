@@ -10,9 +10,10 @@ description: 多账号版本在 VPS、1Panel、OpenResty 和 Cloudflare 上的�
 ## 服务组成
 
 - `web`：Next.js 前端，未登录时仍支持本地模式，登录后 AI 请求走 `/api/server/ai/*`。
-- `server`：Go + Gin + GORM 后端，负责账号、session、额度、后台、媒体和模型网关代理。
+- `server`：Go + Gin + GORM 后端，负责账号、session、额度、后台、媒体、生成任务、产品 Agent 和模型网关代理。
 - `postgres`：使用 1Panel 已有 PostgreSQL，保存账号、云端数据、额度、流水和支付预留表。
 - Cloudflare R2：生产环境建议保存图片、视频和音频媒体文件。
+- NewAPI：应用唯一模型入口；OpenRouter 和各厂商 BYOK 渠道只在 NewAPI 后台配置。
 
 ## Docker Compose
 
@@ -28,7 +29,7 @@ VPS / 1Panel 可以直接使用根目录 `docker-compose.yml`，并在环境变�
 DATABASE_URL=postgres://ic_user:你的密码@1Panel-postgresql-NamW:5432/infinite_canvas?sslmode=disable
 MODEL_GATEWAY_PROVIDER=newapi
 MODEL_GATEWAY_BASE_URL=https://你的-newapi-域名/v1
-MODEL_GATEWAY_INTERNAL_URL=
+MODEL_GATEWAY_INTERNAL_URL=http://newapi:3000/v1
 MODEL_GATEWAY_TOKEN=你的平台 token
 MODEL_GATEWAY_TIMEOUT_SECONDS=600
 STORAGE_PROVIDER=r2
@@ -36,9 +37,15 @@ R2_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
 R2_ACCESS_KEY_ID=...
 R2_SECRET_ACCESS_KEY=...
 R2_BUCKET=...
+WORKER_ENABLED=true
+WORKER_CONCURRENCY=1
+WORKER_POLL_SECONDS=3
+DEFAULT_LOCALE=zh-CN
 ```
 
 建议在 1Panel PostgreSQL 里单独创建 `infinite_canvas` 数据库和独立用户，不要复用 NewAPI 的数据库。截图里的 `1Panel-postgresql-NamW:5432` 是容器连接地址，只有当前应用容器和 PostgreSQL 容器在同一个 Docker 网络时才能使用；如果网络不通，再改用 1Panel 显示的外部连接地址或把应用加入 PostgreSQL 所在网络。
+
+如果 NewAPI 和本应用在同一台 VPS 或同一个 Docker 网络，优先填写 `MODEL_GATEWAY_INTERNAL_URL`，让 Go 后端走内网访问 NewAPI。NewAPI 对外通过 OpenResty、Cloudflare 小黄云和你的域名暴露，是给浏览器或管理访问使用；应用后端调用模型不依赖这个公网域名。`MODEL_GATEWAY_BASE_URL` 可以保留外部域名作为展示或 fallback，实际代理请求会优先使用 internal URL。
 
 如果要使用 `1Panel-postgresql-NamW` 这种容器连接地址，先确认 PostgreSQL 所在网络：
 
@@ -83,4 +90,6 @@ location / {
 
 ## 当前边界
 
-当前版本已经具备后端表结构、账号接口、额度事务、后台手动开通、模型网关代理、媒体上传接口和账号页。画布项目、素材和生成记录的云端接口已提供，但画布现有 localforage 读写路径尚未整体切换；未登录模式仍是浏览器本地数据。
+当前版本已经具备账号接口、额度事务、后台手动开通、模型网关代理、R2/local 媒体上传、云端画布项目、云端素材库、参考图编排、生成任务队列、后台生成审计和产品内 Creative Agent。登录后画布项目和 CreativeAsset 素材主路径走云端 API；未登录模式仍是浏览器本地数据。
+
+生成记录的旧 localforage 页面入口仍在逐步迁移；Docker、R2、NewAPI 和 worker 组合需要在实际 1Panel 环境按你的域名、网络和桶权限做人工验证后再视为生产可用。

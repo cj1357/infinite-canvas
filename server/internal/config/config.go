@@ -27,6 +27,7 @@ type Config struct {
 	WorkerEnabled       bool
 	WorkerConcurrency   int
 	WorkerPollSeconds   int
+	DefaultLocale        string
 	Storage             StorageConfig
 }
 
@@ -66,6 +67,7 @@ func Load() Config {
 		WorkerEnabled:       boolEnv("WORKER_ENABLED", false),
 		WorkerConcurrency:   intEnv("WORKER_CONCURRENCY", 1),
 		WorkerPollSeconds:   intEnv("WORKER_POLL_SECONDS", 3),
+		DefaultLocale:        env("DEFAULT_LOCALE", "zh-CN"),
 		Storage: StorageConfig{
 			Provider:        storageProvider,
 			LocalDir:        env("LOCAL_STORAGE_DIR", "data/media"),

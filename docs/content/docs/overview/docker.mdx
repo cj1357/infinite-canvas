@@ -21,6 +21,12 @@ docker compose up -d
 http://localhost:3000
 ```
 
+`saas/multi-user` 分支的主应用默认映射到：
+
+```text
+http://localhost:3005
+```
+
 ## 本地构建镜像
 
 如果需要基于当前源码构建镜像：
@@ -49,4 +55,4 @@ docker compose -f docker-compose.local.yml up -d --build
 
 ## 数据说明
 
-`saas/multi-user` 分支的 Compose 会启动 Next.js、Go 后端和 PostgreSQL。未登录时，画布、我的素材、生成记录和 AI API Key 仍默认保存在浏览器本地；登录后，AI 请求会走后端 NewAPI 代理并使用额度系统。画布、素材和生成记录的云端 API 已提供，但现有页面的本地读写路径仍在逐步切换中。
+`saas/multi-user` 分支的根目录 Compose 会启动 Next.js 和 Go 后端，并连接 1Panel 既有 PostgreSQL；`docker-compose.local.yml` 才会额外启动本地 PostgreSQL。未登录时仍保留浏览器本地模式；登录后，画布项目、CreativeAsset 素材、参考图编排、生成任务和 AI 请求会走后端云端 API、NewAPI 网关和额度系统。旧生成记录入口仍在逐步迁移。
