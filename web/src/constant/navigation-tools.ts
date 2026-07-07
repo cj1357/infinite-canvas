@@ -1,4 +1,4 @@
-import { FileText, ImagePlus, Images, Maximize2, UserCircle, Video } from "lucide-react";
+import { FileText, ImagePlus, Images, Maximize2, ShieldCheck, UserCircle, Video } from "lucide-react";
 
 export const navigationTools = [
     {
@@ -30,6 +30,12 @@ export const navigationTools = [
         slug: "account",
         label: "会员账号",
         icon: UserCircle,
+    },
+    {
+        slug: "admin",
+        label: "后台管理",
+        icon: ShieldCheck,
+        adminOnly: true,
     },
 ] as const;
 

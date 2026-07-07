@@ -109,3 +109,23 @@ func (h *AdminHandler) PreviewPromptTemplate(c *gin.Context) {
 	result, err := h.admin.PreviewPromptTemplate(req)
 	writeResult(c, result, err)
 }
+
+func (h *AdminHandler) ListGenerationRuns(c *gin.Context) {
+	result, err := h.admin.ListGenerationRuns(readQuery(c))
+	writeResult(c, result, err)
+}
+
+func (h *AdminHandler) ListGenerationJobs(c *gin.Context) {
+	result, err := h.admin.ListGenerationJobs(readQuery(c))
+	writeResult(c, result, err)
+}
+
+func (h *AdminHandler) RetryGenerationRun(c *gin.Context) {
+	result, err := h.admin.RetryGenerationRun(c.Request.Context(), c.Param("id"))
+	writeResult(c, result, err)
+}
+
+func (h *AdminHandler) RefundGenerationRun(c *gin.Context) {
+	result, err := h.admin.RefundGenerationRun(c.Request.Context(), c.Param("id"))
+	writeResult(c, result, err)
+}

@@ -75,6 +75,43 @@ export type PromptTemplate = {
     enabled: boolean;
 };
 
+export type AdminGenerationRun = {
+    id: string;
+    userId: string;
+    projectId: string;
+    referenceSetId: string;
+    ability: string;
+    model: string;
+    prompt: string;
+    status: string;
+    reservedCredits: number;
+    settledCredits: number;
+    usageId: string;
+    gateway: string;
+    gatewayRequestId: string;
+    gatewayModel: string;
+    errorKey: string;
+    errorMessage: string;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type AdminGenerationJob = {
+    id: string;
+    userId: string;
+    generationRunId: string;
+    status: string;
+    ability: string;
+    priority: number;
+    attempt: number;
+    maxAttempts: number;
+    errorKey: string;
+    errorCode: string;
+    errorMessage: string;
+    createdAt: string;
+    updatedAt: string;
+};
+
 export function getModelGatewaySettings() {
     return serverRequest<ModelGatewaySettings>("/admin/model-gateway");
 }
@@ -119,4 +156,22 @@ export function savePromptTemplate(input: PromptTemplate) {
 
 export function previewPromptTemplate(input: { templateId?: string; content?: string; variables?: Record<string, unknown> }) {
     return serverRequest<{ content: string }>("/admin/prompt-templates/preview", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function listAdminGenerationRuns(params = new URLSearchParams()) {
+    const query = params.toString();
+    return serverRequest<ListResult<AdminGenerationRun>>(`/admin/generation-runs${query ? `?${query}` : ""}`);
+}
+
+export function listAdminGenerationJobs(params = new URLSearchParams()) {
+    const query = params.toString();
+    return serverRequest<ListResult<AdminGenerationJob>>(`/admin/generation-jobs${query ? `?${query}` : ""}`);
+}
+
+export function retryAdminGenerationRun(id: string) {
+    return serverRequest<AdminGenerationJob>(`/admin/generation-runs/${id}/retry`, { method: "POST" });
+}
+
+export function refundAdminGenerationRun(id: string) {
+    return serverRequest<AdminGenerationRun>(`/admin/generation-runs/${id}/refund`, { method: "POST" });
 }

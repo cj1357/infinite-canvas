@@ -31,7 +31,7 @@ func New(repo *repository.Repository, store storage.Store, cfg config.Config) *g
 	gatewayService := service.NewModelGatewayService(repo, cfg)
 	generationService := service.NewGenerationService(repo, billingService, referenceService, gatewayService, mediaService)
 	promptTemplateService := service.NewPromptTemplateService(repo)
-	adminService := service.NewAdminService(repo, gatewayService, promptTemplateService)
+	adminService := service.NewAdminService(repo, gatewayService, promptTemplateService, generationService, billingService)
 	if cfg.WorkerEnabled {
 		service.NewJobWorker(repo, generationService, cfg).Start(context.Background())
 	}
@@ -124,6 +124,10 @@ func New(repo *repository.Repository, store storage.Store, cfg config.Config) *g
 	admin.POST("/prompt-templates", adminHandler.CreatePromptTemplate)
 	admin.PATCH("/prompt-templates/:id", adminHandler.UpdatePromptTemplate)
 	admin.POST("/prompt-templates/preview", adminHandler.PreviewPromptTemplate)
+	admin.GET("/generation-runs", adminHandler.ListGenerationRuns)
+	admin.GET("/generation-jobs", adminHandler.ListGenerationJobs)
+	admin.POST("/generation-runs/:id/retry", adminHandler.RetryGenerationRun)
+	admin.POST("/generation-runs/:id/refund", adminHandler.RefundGenerationRun)
 	admin.GET("/model-gateway", adminHandler.GetModelGateway)
 	admin.PATCH("/model-gateway", adminHandler.SaveModelGateway)
 	admin.POST("/model-gateway/test", adminHandler.TestModelGateway)

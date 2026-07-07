@@ -21,5 +21,6 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 个人创作 SaaS 前端：画布新增 ReferenceSet 节点与编排浮层，可创建参考图组、从已连接的云端媒体节点自动生成 ReferenceIntent、编辑角色/权重/备注，并调用编译预览。
 - 个人创作 SaaS 后端/前端：新增 GenerationRun detail 接口，并在画布新增 Generation 节点和 ResultGroup 节点；生成节点可创建/取消/重试后端任务、轮询 run/job/outputs，成功后自动展示结果组。
 - 个人创作 SaaS 后端/前端：素材库升级为云端 CreativeAsset，支持上传媒体生成素材、编辑标签/收藏/评分、删除素材、从结果组保存生成输出为素材，并在参考图编排器中把素材加入当前 ReferenceSet。
+- 个人创作 SaaS 后台：新增后台管理入口和生成审计页，可查看 GenerationRun / GenerationJob、搜索状态和错误，并对失败/取消的生成运行执行重试或对未完成任务触发失败退款。
 - 多账号 SaaS 前端：新增会员账号页和后台用户页；登录后图片、文字、音频和 OpenAI 兼容视频请求会走 `/api/server/ai/*`，未登录继续使用本地直连模式。
 - Docker 部署：根目录 Compose 调整为 web、server、postgres 三服务，并预留 R2 / NewAPI 环境变量。

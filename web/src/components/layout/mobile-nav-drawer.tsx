@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { navigationTools, type NavigationToolSlug } from "@/constant/navigation-tools";
 import { cn } from "@/lib/utils";
+import { useUserStore } from "@/stores/use-user-store";
 
 type MobileNavDrawerProps = {
     open: boolean;
@@ -13,10 +14,12 @@ type MobileNavDrawerProps = {
 };
 
 export function MobileNavDrawer({ open, activeToolSlug, onClose }: MobileNavDrawerProps) {
+    const user = useUserStore((state) => state.user);
+    const visibleTools = navigationTools.filter((tool) => !("adminOnly" in tool) || !tool.adminOnly || user?.role === "admin");
     return (
         <Drawer title="导航" placement="left" size={280} open={open} onClose={onClose} className="md:hidden">
             <div className="space-y-1">
-                {navigationTools.map((tool) => {
+                {visibleTools.map((tool) => {
                     const Icon = tool.icon;
                     const active = tool.slug === activeToolSlug;
                     return (

@@ -183,6 +183,14 @@ func (s *GenerationService) ExecuteGenerationJob(ctx context.Context, job model.
 	if err != nil {
 		return err
 	}
+	if run.Status == "failed" || run.Status == "canceled" {
+		now := time.Now()
+		job.Status = "canceled"
+		job.FinishedAt = &now
+		job.ErrorKey = "generation.run_inactive"
+		job.ErrorMessage = "生成运行已结束"
+		return s.repo.SaveGenerationJob(&job)
+	}
 	requestPayload := generationRequestPayload(run)
 	requestBody, _ := json.Marshal(requestPayload)
 	job.RequestJSON = datatypes.JSON(requestBody)
