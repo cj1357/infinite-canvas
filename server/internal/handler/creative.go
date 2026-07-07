@@ -11,10 +11,11 @@ import (
 type CreativeHandler struct {
 	references *service.ReferenceService
 	generation *service.GenerationService
+	assets     *service.CreativeAssetService
 }
 
-func NewCreativeHandler(references *service.ReferenceService, generation *service.GenerationService) *CreativeHandler {
-	return &CreativeHandler{references: references, generation: generation}
+func NewCreativeHandler(references *service.ReferenceService, generation *service.GenerationService, assets *service.CreativeAssetService) *CreativeHandler {
+	return &CreativeHandler{references: references, generation: generation, assets: assets}
 }
 
 func (h *CreativeHandler) ListReferenceSets(c *gin.Context) {
@@ -74,6 +75,42 @@ func (h *CreativeHandler) CompileReferenceSetPreview(c *gin.Context) {
 		return
 	}
 	httpx.OK(c, result)
+}
+
+func (h *CreativeHandler) ListCreativeAssets(c *gin.Context) {
+	result, err := h.assets.ListCreativeAssets(middleware.CurrentUser(c).ID, readQuery(c))
+	writeResult(c, result, err)
+}
+
+func (h *CreativeHandler) CreateCreativeAsset(c *gin.Context) {
+	var req service.CreativeAssetInput
+	if !bindJSON(c, &req) {
+		return
+	}
+	result, err := h.assets.CreateCreativeAsset(middleware.CurrentUser(c).ID, req)
+	writeResult(c, result, err)
+}
+
+func (h *CreativeHandler) UpdateCreativeAsset(c *gin.Context) {
+	var req service.CreativeAssetInput
+	if !bindJSON(c, &req) {
+		return
+	}
+	result, err := h.assets.UpdateCreativeAsset(middleware.CurrentUser(c).ID, c.Param("id"), req)
+	writeResult(c, result, err)
+}
+
+func (h *CreativeHandler) DeleteCreativeAsset(c *gin.Context) {
+	httpx.Error(c, h.assets.DeleteCreativeAsset(middleware.CurrentUser(c).ID, c.Param("id")))
+}
+
+func (h *CreativeHandler) SaveGenerationOutputAsAsset(c *gin.Context) {
+	var req service.CreativeAssetInput
+	if !bindJSON(c, &req) {
+		return
+	}
+	result, err := h.assets.SaveGenerationOutputAsAsset(middleware.CurrentUser(c).ID, c.Param("id"), req)
+	writeResult(c, result, err)
 }
 
 func (h *CreativeHandler) CreateGenerationRun(c *gin.Context) {

@@ -224,6 +224,10 @@ export function deleteCreativeAsset(id: string) {
     return serverRequest<null>(`/creative-assets/${id}`, { method: "DELETE" });
 }
 
+export function saveGenerationOutputAsAsset(outputId: string, input: Partial<CreativeAsset>) {
+    return serverRequest<CreativeAsset>(`/generation-outputs/${outputId}/save-asset`, { method: "POST", body: JSON.stringify(input) });
+}
+
 export function listReferenceSets(params = new URLSearchParams()) {
     const query = params.toString();
     return serverRequest<ListResult<ReferenceSet>>(`/reference-sets${query ? `?${query}` : ""}`);

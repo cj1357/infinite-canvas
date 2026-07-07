@@ -54,7 +54,7 @@ import { useCanvasStore } from "../stores/use-canvas-store";
 import { applyCanvasAgentOps, type CanvasAgentOp, type CanvasAgentSnapshot } from "../utils/canvas-agent-ops";
 import { buildCanvasResourceReferences, buildNodeMentionReferences } from "../utils/canvas-resource-references";
 import type { CanvasAgentMode } from "../components/canvas-agent-chat-ui";
-import { cancelGenerationRun, createGenerationRun, getGenerationRunDetail, retryGenerationRun, type GenerationRunDetail, type ReferenceIntent, type ReferenceSetDetail } from "@/services/api/creative";
+import { cancelGenerationRun, createGenerationRun, getGenerationRunDetail, retryGenerationRun, saveGenerationOutputAsAsset, type GenerationOutput, type GenerationRunDetail, type ReferenceIntent, type ReferenceSetDetail } from "@/services/api/creative";
 import {
     CanvasNodeType,
     type CanvasAssistantImage,
@@ -1705,6 +1705,26 @@ function InfiniteCanvasPage() {
         [applyGenerationDetail, generationDetailsByRunId, message, t],
     );
 
+    const handleSaveGenerationOutputAsset = useCallback(
+        async (output: GenerationOutput) => {
+            if (!output.id || !output.mediaObjectId) return;
+            try {
+                await saveGenerationOutputAsAsset(output.id, {
+                    kind: "image",
+                    title: t("generation.node.savedAssetTitle"),
+                    favorite: false,
+                    rating: 0,
+                    tagsJson: [],
+                    metadataJson: { source: "canvas-result", projectId },
+                });
+                message.success(t("generation.node.saveAssetSuccess"));
+            } catch (error) {
+                message.error(error instanceof Error ? error.message : t("generation.node.saveAssetFailed"));
+            }
+        },
+        [message, projectId, t],
+    );
+
     const downloadNodeImage = useCallback((node: CanvasNodeData) => {
         if ((node.type !== CanvasNodeType.Image && node.type !== CanvasNodeType.Video && node.type !== CanvasNodeType.Audio) || !node.metadata?.content) return;
         saveAs(node.metadata.content, `canvas-${node.type}-${node.id}.${node.type === CanvasNodeType.Video ? "mp4" : node.type === CanvasNodeType.Audio ? audioExtension(node.metadata.mimeType) : imageExtension(node.metadata.content)}`);
@@ -2801,6 +2821,7 @@ function InfiniteCanvasPage() {
                                         node={contentNode}
                                         outputs={contentNode.metadata?.generationRunId ? generationDetailsByRunId[contentNode.metadata.generationRunId]?.outputs || [] : []}
                                         onPatch={handleConfigNodeChange}
+                                        onSaveAsset={handleSaveGenerationOutputAsset}
                                     />
                                 ) : (
                                     <CanvasConfigNodePanel

@@ -12,9 +12,11 @@ import {
     createReferenceIntent,
     createReferenceSet,
     getReferenceSet,
+    listCreativeAssets,
     mediaObjectUrl,
     updateReferenceIntent,
     updateReferenceSet,
+    type CreativeAsset,
     type CompileReferenceSetPreviewOutput,
     type ReferenceIntent,
     type ReferenceIntentRole,
@@ -49,6 +51,8 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
     const [previewPrompt, setPreviewPrompt] = useState(defaultPrompt || node.metadata?.prompt || "");
     const [preview, setPreview] = useState<CompileReferenceSetPreviewOutput | null>(null);
     const [previewing, setPreviewing] = useState(false);
+    const [assets, setAssets] = useState<CreativeAsset[]>([]);
+    const [assetsLoading, setAssetsLoading] = useState(false);
     const autoAddingKeysRef = useRef(new Set<string>());
     const sourceKeySet = useMemo(() => new Set((detail?.intents || []).map(intentSourceKey)), [detail?.intents]);
     const orderedIntents = useMemo(() => [...(detail?.intents || [])].sort((a, b) => a.sortOrder - b.sortOrder), [detail?.intents]);
@@ -98,6 +102,23 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
         }
     };
 
+    const loadAssets = async () => {
+        setAssetsLoading(true);
+        try {
+            const params = new URLSearchParams({ page: "1", pageSize: "20" });
+            const result = await listCreativeAssets(params);
+            setAssets(result.items.filter((item) => item.mediaObjectId));
+        } catch {
+            message.error(t("reference.composer.assetLoadFailed"));
+        } finally {
+            setAssetsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        void loadAssets();
+    }, []);
+
     const saveTitle = async () => {
         if (!detail) return;
         try {
@@ -120,6 +141,29 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
             await createReferenceIntent(detail.referenceSet.id, {
                 mediaObjectId,
                 assetId,
+                role: "subject",
+                weight: 1,
+                enabled: true,
+                sortOrder: detail.intents.length,
+                note: "",
+            });
+            const next = await getReferenceSet(detail.referenceSet.id);
+            setDetail(next);
+            onReferenceSetChange(node.id, next);
+        } catch {
+            message.error(t("reference.composer.saveFailed"));
+        } finally {
+            setSavingId(null);
+        }
+    };
+
+    const addAssetSource = async (asset: CreativeAsset) => {
+        if (!detail) return;
+        setSavingId(`asset:${asset.id}`);
+        try {
+            await createReferenceIntent(detail.referenceSet.id, {
+                mediaObjectId: asset.mediaObjectId,
+                assetId: asset.id,
                 role: "subject",
                 weight: 1,
                 enabled: true,
@@ -226,6 +270,22 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
             </section>
 
             <section className="mt-3">
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <SectionTitle>{t("reference.composer.assetLibrary")}</SectionTitle>
+                    <Button size="small" type="text" className="!h-6 !px-2 !text-[11px]" loading={assetsLoading} onClick={() => void loadAssets()}>
+                        {t("common.refresh")}
+                    </Button>
+                </div>
+                <div className="thin-scrollbar flex max-h-28 gap-2 overflow-x-auto pb-1">
+                    {assets.length ? (
+                        assets.map((asset) => <AssetSourceButton key={asset.id} asset={asset} added={assetAdded(asset, sourceKeySet)} saving={savingId === `asset:${asset.id}`} onAdd={() => void addAssetSource(asset)} />)
+                    ) : (
+                        <EmptyLine text={assetsLoading ? t("common.loading") : t("reference.node.empty")} />
+                    )}
+                </div>
+            </section>
+
+            <section className="mt-3">
                 <SectionTitle>{t("reference.composer.intents")}</SectionTitle>
                 <div className="thin-scrollbar max-h-72 space-y-2 overflow-y-auto pr-1">
                     {orderedIntents.length ? (
@@ -263,6 +323,20 @@ function SourceButton({ node, added, saving, onAdd }: { node: CanvasNodeData; ad
             <div className="mt-1 truncate text-[11px]">{node.title}</div>
             <Button size="small" className="mt-1 !h-6 !w-full !text-[11px]" disabled={!bound || added} loading={saving} onClick={onAdd}>
                 {bound ? t("reference.composer.add") : t("reference.composer.unavailable")}
+            </Button>
+        </div>
+    );
+}
+
+function AssetSourceButton({ asset, added, saving, onAdd }: { asset: CreativeAsset; added: boolean; saving: boolean; onAdd: () => void }) {
+    const { t } = useI18n();
+    const theme = canvasThemes[useThemeStore((state) => state.theme)];
+    return (
+        <div className="w-24 shrink-0 rounded-lg border p-1.5" style={{ borderColor: theme.node.stroke, background: theme.node.fill }}>
+            <img src={mediaObjectUrl(asset.mediaObjectId)} alt="" className="h-14 w-full rounded-md object-cover" />
+            <div className="mt-1 truncate text-[11px]">{asset.title}</div>
+            <Button size="small" className="mt-1 !h-6 !w-full !text-[11px]" disabled={added} loading={saving} onClick={onAdd}>
+                {t("reference.composer.add")}
             </Button>
         </div>
     );
@@ -317,4 +391,8 @@ function sourceKey(node: CanvasNodeData) {
 
 function intentSourceKey(intent: ReferenceIntent) {
     return intent.mediaObjectId ? `media:${intent.mediaObjectId}` : intent.assetId ? `asset:${intent.assetId}` : intent.id;
+}
+
+function assetAdded(asset: CreativeAsset, keys: Set<string>) {
+    return keys.has(`asset:${asset.id}`) || keys.has(`media:${asset.mediaObjectId}`);
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { Image as ImageIcon } from "lucide-react";
+import { Button } from "antd";
+import { Image as ImageIcon, Star } from "lucide-react";
 
 import { useI18n } from "@/i18n/use-i18n";
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -12,20 +13,35 @@ type ResultGroupNodeProps = {
     node: CanvasNodeData;
     outputs: GenerationOutput[];
     onPatch: (nodeId: string, patch: Partial<CanvasNodeMetadata>) => void;
+    onSaveAsset: (output: GenerationOutput) => void;
 };
 
-export function ResultGroupNode({ node, outputs, onPatch }: ResultGroupNodeProps) {
+export function ResultGroupNode({ node, outputs, onPatch, onSaveAsset }: ResultGroupNodeProps) {
     const { t } = useI18n();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const selectedOutputId = node.metadata?.generationOutputId || outputs.find((item) => item.selected)?.id || "";
+    const selectedOutput = outputs.find((item) => item.id === selectedOutputId) || outputs[0];
 
     return (
         <div className="flex h-full w-full cursor-move flex-col px-3 pb-3 pt-7 text-sm" style={{ color: theme.node.text }}>
             <div className="mb-2 flex items-center justify-between gap-2">
                 <div className="truncate text-sm font-semibold">{node.title || t("generation.node.resultGroup")}</div>
-                <span className="text-[11px]" style={{ color: theme.node.muted }}>
-                    {outputs.length ? t("reference.node.count", { count: outputs.length }) : t("generation.node.noOutputs")}
-                </span>
+                {selectedOutput ? (
+                    <Button
+                        size="small"
+                        type="text"
+                        className="!h-7 !px-2 !text-[11px]"
+                        icon={<Star className="size-3.5" />}
+                        onMouseDown={(event) => event.stopPropagation()}
+                        onClick={() => onSaveAsset(selectedOutput)}
+                    >
+                        {t("generation.node.saveAsset")}
+                    </Button>
+                ) : (
+                    <span className="text-[11px]" style={{ color: theme.node.muted }}>
+                        {t("generation.node.noOutputs")}
+                    </span>
+                )}
             </div>
             {outputs.length ? (
                 <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-hidden">
