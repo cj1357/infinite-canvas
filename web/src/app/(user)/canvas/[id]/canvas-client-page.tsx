@@ -42,7 +42,8 @@ import { Minimap } from "../components/canvas-mini-map";
 import { CanvasNode } from "../components/canvas-node";
 import { CanvasNodePromptPanel, type CanvasNodeGenerationMode } from "../components/canvas-node-prompt-panel";
 import { CanvasToolbar } from "../components/canvas-toolbar";
-import { AssetPickerModal, type InsertAssetPayload } from "../components/asset-picker-modal";
+import { AssetPickerModal } from "../components/asset-picker-modal";
+import type { InsertAssetPayload } from "../components/asset-picker-payload";
 import { CanvasZoomControls } from "../components/canvas-zoom-controls";
 import { GenerationNode } from "../components/generation-node";
 import { ReferenceComposer } from "../components/reference-composer";
@@ -52,7 +53,7 @@ import { useCanvasStore } from "../stores/use-canvas-store";
 import { applyCanvasAgentOps, type CanvasAgentOp, type CanvasAgentSnapshot } from "../utils/canvas-agent-ops";
 import { buildCanvasResourceReferences, buildNodeMentionReferences } from "../utils/canvas-resource-references";
 import type { CanvasAgentMode } from "../components/canvas-agent-chat-ui";
-import { cancelGenerationRun, createGenerationRun, getGenerationRunDetail, retryGenerationRun, saveGenerationOutputAsAsset, type GenerationOutput, type GenerationRunDetail, type ReferenceIntent, type ReferenceSetDetail } from "@/services/api/creative";
+import { cancelGenerationRun, createGenerationRun, getGenerationRunDetail, mediaObjectUrl, retryGenerationRun, saveGenerationOutputAsAsset, type GenerationOutput, type GenerationRunDetail, type ReferenceIntent, type ReferenceSetDetail } from "@/services/api/creative";
 import {
     CanvasNodeType,
     type CanvasAssistantImage,
@@ -1733,7 +1734,7 @@ function InfiniteCanvasPage() {
                     bytes: node.metadata.bytes || getDataUrlByteSize(dataUrl),
                     mimeType: node.metadata.mimeType || "image/png",
                 },
-                metadata: { source: "canvas", nodeId: node.id, prompt: node.metadata?.prompt },
+                metadata: { source: "canvas", nodeId: node.id, prompt: node.metadata?.prompt, mediaObjectId: node.metadata?.mediaObjectId, assetId: node.metadata?.assetId },
             });
             message.success("已加入我的素材");
         },
@@ -2604,22 +2605,54 @@ function InfiniteCanvasPage() {
     );
 
     const handleAssetInsert = useCallback(
-        (payload: InsertAssetPayload) => {
+        async (payload: InsertAssetPayload) => {
             if (payload.kind === "text") {
                 insertAssistantText(payload.content);
             } else if (payload.kind === "video") {
+                const url = payload.mediaObjectId ? mediaObjectUrl(payload.mediaObjectId) : payload.url;
+                if (!url) {
+                    message.error("素材视频为空");
+                    return;
+                }
                 const spec = NODE_DEFAULT_SIZE[CanvasNodeType.Video];
                 const center = screenToCanvas((containerRef.current?.getBoundingClientRect().left || 0) + size.width / 2, (containerRef.current?.getBoundingClientRect().top || 0) + size.height / 2);
                 const id = `video-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
                 const nextSize = fitNodeSize(payload.width || spec.width, payload.height || spec.height, VIDEO_NODE_MAX_WIDTH, VIDEO_NODE_MAX_HEIGHT);
-                setNodes((prev) => [...prev, { id, type: CanvasNodeType.Video, title: payload.title, position: { x: center.x - nextSize.width / 2, y: center.y - nextSize.height / 2 }, width: nextSize.width, height: nextSize.height, metadata: { content: payload.url, storageKey: payload.storageKey, status: NODE_STATUS_SUCCESS, naturalWidth: payload.width, naturalHeight: payload.height } }]);
+                setNodes((prev) => [...prev, { id, type: CanvasNodeType.Video, title: payload.title, position: { x: center.x - nextSize.width / 2, y: center.y - nextSize.height / 2 }, width: nextSize.width, height: nextSize.height, metadata: { content: url, storageKey: payload.storageKey, status: NODE_STATUS_SUCCESS, naturalWidth: payload.width, naturalHeight: payload.height, bytes: payload.bytes, mimeType: payload.mimeType, mediaObjectId: payload.mediaObjectId, assetId: payload.assetId } }]);
                 setSelectedNodeIds(new Set([id]));
             } else {
-                insertAssistantImage({ id: `asset-${Date.now()}`, prompt: payload.title, dataUrl: payload.dataUrl, storageKey: payload.storageKey });
+                const content = payload.mediaObjectId ? mediaObjectUrl(payload.mediaObjectId) : payload.dataUrl;
+                if (!content) {
+                    message.error("素材图片为空");
+                    return;
+                }
+                if (payload.mediaObjectId) {
+                    const meta = payload.width && payload.height ? { width: payload.width, height: payload.height, mimeType: payload.mimeType || "image/png" } : await readImageMeta(content);
+                    const config = fitNodeSize(meta.width, meta.height);
+                    const center = screenToCanvas((containerRef.current?.getBoundingClientRect().left || 0) + size.width / 2, (containerRef.current?.getBoundingClientRect().top || 0) + size.height / 2);
+                    const id = `image-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+                    setNodes((prev) => [
+                        ...prev,
+                        {
+                            id,
+                            type: CanvasNodeType.Image,
+                            title: payload.title,
+                            position: { x: center.x - config.width / 2, y: center.y - config.height / 2 },
+                            width: config.width,
+                            height: config.height,
+                            metadata: { content, storageKey: payload.storageKey, status: NODE_STATUS_SUCCESS, naturalWidth: meta.width, naturalHeight: meta.height, bytes: payload.bytes || 0, mimeType: payload.mimeType || meta.mimeType, mediaObjectId: payload.mediaObjectId, assetId: payload.assetId, prompt: payload.title },
+                        },
+                    ]);
+                    setSelectedNodeIds(new Set([id]));
+                    setSelectedConnectionId(null);
+                    setDialogNodeId(id);
+                } else {
+                    await insertAssistantImage({ id: `asset-${Date.now()}`, prompt: payload.title, dataUrl: content, storageKey: payload.storageKey });
+                }
             }
             setAssetPickerOpen(false);
         },
-        [insertAssistantImage, insertAssistantText, screenToCanvas, size.height, size.width],
+        [insertAssistantImage, insertAssistantText, message, screenToCanvas, size.height, size.width],
     );
 
     const assistantOpen = assistantMounted && !assistantCollapsed;
