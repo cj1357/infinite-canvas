@@ -46,7 +46,7 @@ import { AssetPickerModal } from "../components/asset-picker-modal";
 import type { InsertAssetPayload } from "../components/asset-picker-payload";
 import { CanvasZoomControls } from "../components/canvas-zoom-controls";
 import { GenerationNode } from "../components/generation-node";
-import { ReferenceComposer } from "../components/reference-composer";
+import { ReferenceComposer, type ReferenceComposerDraft } from "../components/reference-composer";
 import { ReferenceSetNode } from "../components/reference-set-node";
 import { ResultGroupNode } from "../components/result-group-node";
 import { useCanvasStore } from "../stores/use-canvas-store";
@@ -325,6 +325,7 @@ function InfiniteCanvasPage() {
     const [openingBatchIds, setOpeningBatchIds] = useState<Set<string>>(new Set());
     const [isNodeDragging, setIsNodeDragging] = useState(false);
     const [referenceDetailsByNodeId, setReferenceDetailsByNodeId] = useState<Record<string, ReferenceSetDetail>>({});
+    const [referenceComposerDrafts, setReferenceComposerDrafts] = useState<Record<string, ReferenceComposerDraft>>({});
     const [generationDetailsByRunId, setGenerationDetailsByRunId] = useState<Record<string, GenerationRunDetail>>({});
 
     const nodesRef = useRef(nodes);
@@ -1573,6 +1574,13 @@ function InfiniteCanvasPage() {
         [handleConfigNodeChange],
     );
 
+    const handleReferenceComposerDraftChange = useCallback((nodeId: string, patch: Partial<ReferenceComposerDraft>) => {
+        setReferenceComposerDrafts((prev) => ({
+            ...prev,
+            [nodeId]: { previewPrompt: prev[nodeId]?.previewPrompt ?? "", preview: prev[nodeId]?.preview ?? null, ...patch },
+        }));
+    }, []);
+
     const applyGenerationDetail = useCallback((detail: GenerationRunDetail) => {
         setGenerationDetailsByRunId((prev) => ({ ...prev, [detail.run.id]: detail }));
         setNodes((prev) => {
@@ -2781,7 +2789,9 @@ function InfiniteCanvasPage() {
                                         connectedSourceNodes={getConnectedReferenceSourceNodes(panelNode.id, nodes, connections)}
                                         initialDetail={referenceDetailsByNodeId[panelNode.id]}
                                         defaultPrompt={panelNode.metadata?.prompt || ""}
+                                        draft={referenceComposerDrafts[panelNode.id]}
                                         onReferenceSetChange={handleReferenceSetChange}
+                                        onDraftChange={handleReferenceComposerDraftChange}
                                         onClose={() => setDialogNodeId(null)}
                                     />
                                 ) : panelNode.type === CanvasNodeType.Config ? (

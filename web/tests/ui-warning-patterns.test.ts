@@ -41,4 +41,14 @@ describe("ui warning patterns", () => {
         expect(file).toContain("reference.composer.sourceStyle");
         expect(file).toContain("reference.composer.sourceComposition");
     });
+
+    test("reference composer preview draft is persisted outside the transient node panel", () => {
+        const composer = source("src/app/(user)/canvas/components/reference-composer.tsx");
+        const canvasPage = source("src/app/(user)/canvas/[id]/canvas-client-page.tsx");
+        expect(composer).toContain("export type ReferenceComposerDraft");
+        expect(composer).toContain("draft?.preview");
+        expect(composer).toContain("onDraftChange?.(node.id");
+        expect(canvasPage).toContain("referenceComposerDrafts");
+        expect(canvasPage).toContain("handleReferenceComposerDraftChange");
+    });
 });

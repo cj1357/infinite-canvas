@@ -42,6 +42,11 @@ import {
 const { TextArea } = Input;
 const roles: ReferenceIntentRole[] = ["subject", "style", "composition", "element"];
 
+export type ReferenceComposerDraft = {
+    previewPrompt: string;
+    preview: CompileReferenceSetPreviewOutput | null;
+};
+
 type ReferenceComposerProps = {
     node: CanvasNodeData;
     projectId: string;
@@ -49,7 +54,9 @@ type ReferenceComposerProps = {
     connectedSourceNodes?: CanvasNodeData[];
     initialDetail?: ReferenceSetDetail | null;
     defaultPrompt?: string;
+    draft?: ReferenceComposerDraft;
     onReferenceSetChange: (nodeId: string, detail: ReferenceSetDetail) => void;
+    onDraftChange?: (nodeId: string, patch: Partial<ReferenceComposerDraft>) => void;
     onClose: () => void;
 };
 
@@ -72,7 +79,7 @@ type RegionIntentDraft = {
 
 const defaultRegionCrop: ReferenceCropRect = { type: "rect", x: 0.2, y: 0.2, width: 0.6, height: 0.6 };
 
-export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourceNodes = [], initialDetail, defaultPrompt, onReferenceSetChange, onClose }: ReferenceComposerProps) {
+export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourceNodes = [], initialDetail, defaultPrompt, draft, onReferenceSetChange, onDraftChange, onClose }: ReferenceComposerProps) {
     const { message } = App.useApp();
     const { locale, t } = useI18n();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
@@ -81,8 +88,8 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
     const [title, setTitle] = useState(initialDetail?.referenceSet.title || node.title || t("reference.node.title"));
     const [loading, setLoading] = useState(false);
     const [savingId, setSavingId] = useState<string | null>(null);
-    const [previewPrompt, setPreviewPrompt] = useState(defaultPrompt || node.metadata?.prompt || "");
-    const [preview, setPreview] = useState<CompileReferenceSetPreviewOutput | null>(null);
+    const [previewPrompt, setPreviewPrompt] = useState(draft?.previewPrompt ?? defaultPrompt ?? node.metadata?.prompt ?? "");
+    const [preview, setPreview] = useState<CompileReferenceSetPreviewOutput | null>(draft?.preview ?? null);
     const [previewing, setPreviewing] = useState(false);
     const [assets, setAssets] = useState<CreativeAsset[]>([]);
     const [assetsLoading, setAssetsLoading] = useState(false);
@@ -330,6 +337,11 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
         }
     };
 
+    const updatePreviewPrompt = (value: string) => {
+        setPreviewPrompt(value);
+        onDraftChange?.(node.id, { previewPrompt: value });
+    };
+
     const compilePreview = async () => {
         if (!cloudUserId || !detail) return;
         setPreviewing(true);
@@ -341,7 +353,9 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
                 model: node.metadata?.model || "default",
                 params: { count: node.metadata?.count || 1, size: node.metadata?.size },
             });
-            setPreview(normalizeReferencePreviewOutput(next));
+            const normalized = normalizeReferencePreviewOutput(next);
+            setPreview(normalized);
+            onDraftChange?.(node.id, { preview: normalized, previewPrompt });
         } catch {
             message.error(t("reference.composer.previewFailed"));
         } finally {
@@ -434,7 +448,7 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
 
             <section className="mt-3">
                 <SectionTitle>{t("reference.composer.previewPrompt")}</SectionTitle>
-                <TextArea rows={2} value={previewPrompt} onChange={(event) => setPreviewPrompt(event.target.value)} />
+                <TextArea rows={2} value={previewPrompt} onChange={(event) => updatePreviewPrompt(event.target.value)} />
                 {preview ? (
                     <div className="mt-2 rounded-lg border p-2 text-xs leading-5" style={{ borderColor: theme.node.stroke, background: theme.node.fill }}>
                         {preview.warnings.length ? <div className="mb-2 text-amber-600">{preview.warnings.join(" / ")}</div> : null}
