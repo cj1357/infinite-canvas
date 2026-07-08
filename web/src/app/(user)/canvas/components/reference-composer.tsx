@@ -7,6 +7,7 @@ import { ArrowDown, ArrowUp, Image as ImageIcon, LoaderCircle, RefreshCw, X } fr
 import { useI18n } from "@/i18n/use-i18n";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
+import { useUserStore } from "@/stores/use-user-store";
 import {
     compileReferenceSetPreview,
     createReferenceIntent,
@@ -44,6 +45,7 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
     const { message } = App.useApp();
     const { locale, t } = useI18n();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
+    const cloudUserId = useUserStore((state) => state.user?.id || "");
     const [detail, setDetail] = useState<ReferenceSetDetail | null>(initialDetail || null);
     const [title, setTitle] = useState(initialDetail?.referenceSet.title || node.title || t("reference.node.title"));
     const [loading, setLoading] = useState(false);
@@ -58,6 +60,10 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
     const orderedIntents = useMemo(() => [...(detail?.intents || [])].sort((a, b) => a.sortOrder - b.sortOrder), [detail?.intents]);
 
     useEffect(() => {
+        if (!cloudUserId) {
+            setLoading(false);
+            return;
+        }
         let cancelled = false;
         const run = async () => {
             setLoading(true);
@@ -77,7 +83,7 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
         return () => {
             cancelled = true;
         };
-    }, [message, node.id, node.metadata?.referenceSetId, onReferenceSetChange, t]);
+    }, [cloudUserId, message, node.id, node.metadata?.referenceSetId, onReferenceSetChange, t]);
 
     const createSet = async () => {
         const referenceSet = await createReferenceSet({
@@ -90,7 +96,7 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
     };
 
     const refresh = async () => {
-        if (!detail) return;
+        if (!cloudUserId || !detail) return;
         setLoading(true);
         try {
             const next = await getReferenceSet(detail.referenceSet.id);
@@ -103,6 +109,10 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
     };
 
     const loadAssets = async () => {
+        if (!cloudUserId) {
+            setAssets([]);
+            return;
+        }
         setAssetsLoading(true);
         try {
             const params = new URLSearchParams({ page: "1", pageSize: "20" });
@@ -116,11 +126,15 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
     };
 
     useEffect(() => {
+        if (!cloudUserId) {
+            setAssets([]);
+            return;
+        }
         void loadAssets();
-    }, []);
+    }, [cloudUserId]);
 
     const saveTitle = async () => {
-        if (!detail) return;
+        if (!cloudUserId || !detail) return;
         try {
             const referenceSet = await updateReferenceSet(detail.referenceSet.id, { ...detail.referenceSet, title: title.trim() || t("reference.node.title"), projectId });
             const next = { ...detail, referenceSet };
@@ -132,7 +146,7 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
     };
 
     const addSource = async (source: CanvasNodeData) => {
-        if (!detail) return;
+        if (!cloudUserId || !detail) return;
         const mediaObjectId = source.metadata?.mediaObjectId || "";
         const assetId = source.metadata?.assetId || "";
         if (!mediaObjectId && !assetId) return;
@@ -158,7 +172,7 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
     };
 
     const addAssetSource = async (asset: CreativeAsset) => {
-        if (!detail) return;
+        if (!cloudUserId || !detail) return;
         setSavingId(`asset:${asset.id}`);
         try {
             await createReferenceIntent(detail.referenceSet.id, {
@@ -194,7 +208,7 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
     }, [connectedSourceNodes, detail, sourceKeySet]);
 
     const patchIntent = async (intent: ReferenceIntent, patch: IntentPatch) => {
-        if (!detail) return;
+        if (!cloudUserId || !detail) return;
         setSavingId(intent.id);
         try {
             const updated = await updateReferenceIntent(intent.id, {
@@ -217,7 +231,7 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
     };
 
     const compilePreview = async () => {
-        if (!detail) return;
+        if (!cloudUserId || !detail) return;
         setPreviewing(true);
         try {
             const next = await compileReferenceSetPreview(detail.referenceSet.id, {

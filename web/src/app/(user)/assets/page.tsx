@@ -5,6 +5,7 @@ import { App, Button, Empty, Form, Image, Input, InputNumber, Modal, Pagination,
 import { Heart, Image as ImageIcon, RefreshCw, Search, Star, Trash2, Upload } from "lucide-react";
 
 import { createCreativeAsset, deleteCreativeAsset, listCreativeAssets, mediaObjectUrl, updateCreativeAsset, uploadMediaObject, type CreativeAsset } from "@/services/api/creative";
+import { useUserStore } from "@/stores/use-user-store";
 
 type AssetFormValues = {
     title: string;
@@ -25,6 +26,7 @@ export default function AssetsPage() {
     const { message } = App.useApp();
     const [form] = Form.useForm<AssetFormValues>();
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const cloudUserId = useUserStore((state) => state.user?.id || "");
     const [items, setItems] = useState<CreativeAsset[]>([]);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
@@ -38,6 +40,12 @@ export default function AssetsPage() {
     const filteredItems = useMemo(() => (kind === "all" ? items : items.filter((item) => item.kind === kind)), [items, kind]);
 
     const load = async () => {
+        if (!cloudUserId) {
+            setItems([]);
+            setTotal(0);
+            setLoading(false);
+            return;
+        }
         setLoading(true);
         try {
             const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), keyword });
@@ -53,7 +61,7 @@ export default function AssetsPage() {
 
     useEffect(() => {
         void load();
-    }, [page, pageSize]);
+    }, [cloudUserId, page, pageSize]);
 
     const search = () => {
         setPage(1);
@@ -62,6 +70,10 @@ export default function AssetsPage() {
 
     const uploadAsset = async (file?: File) => {
         if (!file) return;
+        if (!cloudUserId) {
+            message.warning("请先登录后上传素材");
+            return;
+        }
         setLoading(true);
         try {
             const media = await uploadMediaObject(file);
@@ -96,7 +108,7 @@ export default function AssetsPage() {
     };
 
     const saveEdit = async () => {
-        if (!editing) return;
+        if (!cloudUserId || !editing) return;
         const values = await form.validateFields();
         await updateCreativeAsset(editing.id, { ...editing, ...values });
         message.success("素材已更新");
@@ -105,7 +117,7 @@ export default function AssetsPage() {
     };
 
     const confirmDelete = async () => {
-        if (!deleting) return;
+        if (!cloudUserId || !deleting) return;
         await deleteCreativeAsset(deleting.id);
         message.success("素材已删除");
         setDeleting(null);
@@ -122,10 +134,10 @@ export default function AssetsPage() {
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                         <Input.Search className="w-72" allowClear prefix={<Search className="size-4 text-stone-400" />} value={keyword} placeholder="搜索标题、描述或类型" onChange={(event) => setKeyword(event.target.value)} onSearch={search} />
-                        <Button icon={<RefreshCw className="size-4" />} loading={loading} onClick={() => void load()}>
+                        <Button icon={<RefreshCw className="size-4" />} loading={loading} disabled={!cloudUserId} onClick={() => void load()}>
                             刷新
                         </Button>
-                        <Button type="primary" icon={<Upload className="size-4" />} onClick={() => fileInputRef.current?.click()}>
+                        <Button type="primary" icon={<Upload className="size-4" />} disabled={!cloudUserId} onClick={() => fileInputRef.current?.click()}>
                             上传素材
                         </Button>
                     </div>
@@ -146,7 +158,7 @@ export default function AssetsPage() {
                         ))}
                     </div>
                 ) : (
-                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={loading ? "加载中" : "暂无素材"} className="py-20" />
+                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={loading ? "加载中" : cloudUserId ? "暂无素材" : "请先登录后查看素材"} className="py-20" />
                 )}
 
                 <div className="flex justify-center">

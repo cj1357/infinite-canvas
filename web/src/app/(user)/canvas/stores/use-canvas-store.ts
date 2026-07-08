@@ -54,6 +54,7 @@ type PersistedCanvasState = Pick<CanvasStore, "projects">;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let queuedPersistState: PersistedCanvasState | null = null;
 const cloudSaveTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const cloudProjectIds = new Set<string>();
 const CLOUD_SAVE_DELAY_MS = 900;
 const CLOUD_PROJECT_PAGE_SIZE = 100;
 
@@ -95,6 +96,8 @@ export const useCanvasStore = create<CanvasStore>()(
                 try {
                     const params = new URLSearchParams({ page: "1", pageSize: String(CLOUD_PROJECT_PAGE_SIZE) });
                     const result = await listCloudCanvasProjects(params);
+                    cloudProjectIds.clear();
+                    result.items.forEach((project) => cloudProjectIds.add(project.id));
                     set({ projects: result.items.map(projectFromCloud), cloudLoaded: true, cloudLoading: false, cloudError: null });
                 } catch (error) {
                     set({ cloudLoaded: true, cloudLoading: false, cloudError: error instanceof Error ? error.message : "云端画布加载失败" });
@@ -121,7 +124,7 @@ export const useCanvasStore = create<CanvasStore>()(
                     viewport: initialViewport,
                 };
                 set((state) => ({ projects: [project, ...state.projects] }));
-                void saveCloudProject(project);
+                void createCloudProject(project);
                 return id;
             },
             importProject: (source) => {
@@ -140,7 +143,7 @@ export const useCanvasStore = create<CanvasStore>()(
                     viewport: source.viewport || initialViewport,
                 });
                 set((state) => ({ projects: [project, ...state.projects] }));
-                void saveCloudProject(project);
+                void createCloudProject(project);
                 return project.id;
             },
             openProject: (id) => {
@@ -213,22 +216,36 @@ function clearCloudSave(id: string) {
 
 async function saveCloudProject(project: CanvasProject) {
     if (!canUseCloudProjects()) return;
+    if (!cloudProjectIds.has(project.id)) {
+        await createCloudProject(project);
+        return;
+    }
     const input = projectToCloudInput(project);
     try {
         await updateCloudCanvasProject(project.id, input);
+        cloudProjectIds.add(project.id);
     } catch (error) {
         if (error instanceof ServerApiError && error.status !== 404) {
             console.warn("保存云端画布失败", error);
             return;
         }
+        cloudProjectIds.delete(project.id);
+        await createCloudProject(project);
+    }
+}
+
+async function createCloudProject(project: CanvasProject) {
+    if (!canUseCloudProjects()) return;
+    const input = projectToCloudInput(project);
+    try {
+        await createCloudCanvasProject(input);
+        cloudProjectIds.add(project.id);
+    } catch (createError) {
         try {
-            await createCloudCanvasProject(input);
-        } catch (createError) {
-            try {
-                await updateCloudCanvasProject(project.id, input);
-            } catch (retryError) {
-                console.warn("创建云端画布失败", createError, retryError);
-            }
+            await updateCloudCanvasProject(project.id, input);
+            cloudProjectIds.add(project.id);
+        } catch (retryError) {
+            console.warn("创建云端画布失败", createError, retryError);
         }
     }
 }

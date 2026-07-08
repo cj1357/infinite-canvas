@@ -519,28 +519,6 @@ function InfiniteCanvasPage() {
         };
     }, [projectId, projectLoaded, updateProject, viewport]);
 
-    useEffect(() => {
-        if (!projectLoaded || !pollingGenerationRunIds.length) return;
-        let cancelled = false;
-        const tick = async () => {
-            await Promise.all(
-                pollingGenerationRunIds.map(async (runId) => {
-                    try {
-                        if (!cancelled) await loadGenerationDetail(runId);
-                    } catch {
-                        // transient polling failures are surfaced by explicit node actions
-                    }
-                }),
-            );
-        };
-        void tick();
-        const timer = window.setInterval(() => void tick(), 2000);
-        return () => {
-            cancelled = true;
-            window.clearInterval(timer);
-        };
-    }, [loadGenerationDetail, pollingGenerationRunIds, projectLoaded]);
-
     useLayoutEffect(() => {
         nodesRef.current = nodes;
         connectionsRef.current = connections;
@@ -1649,6 +1627,28 @@ function InfiniteCanvasPage() {
         },
         [applyGenerationDetail],
     );
+
+    useEffect(() => {
+        if (!projectLoaded || !pollingGenerationRunIds.length) return;
+        let cancelled = false;
+        const tick = async () => {
+            await Promise.all(
+                pollingGenerationRunIds.map(async (runId) => {
+                    try {
+                        if (!cancelled) await loadGenerationDetail(runId);
+                    } catch {
+                        // transient polling failures are surfaced by explicit node actions
+                    }
+                }),
+            );
+        };
+        void tick();
+        const timer = window.setInterval(() => void tick(), 2000);
+        return () => {
+            cancelled = true;
+            window.clearInterval(timer);
+        };
+    }, [loadGenerationDetail, pollingGenerationRunIds, projectLoaded]);
 
     const handleCreateGenerationRun = useCallback(
         async (node: CanvasNodeData) => {
