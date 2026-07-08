@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy } from "lucide-react";
+import { Copy, Image as ImageIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button, Card, Tag } from "antd";
 
@@ -23,6 +23,8 @@ export function PromptCard({
     actionType?: "text" | "primary";
     extraAction?: ReactNode;
 }) {
+    const coverUrl = item.coverUrl.trim();
+
     return (
         <Card
             hoverable
@@ -30,7 +32,7 @@ export function PromptCard({
             styles={{ body: { padding: 0 } }}
             cover={
                 <button type="button" className="block w-full text-left" onClick={onOpen}>
-                    <img src={item.coverUrl} alt={item.title} className="aspect-[4/3] w-full object-cover" />
+                    {coverUrl ? <img src={coverUrl} alt={item.title} className="aspect-[4/3] w-full object-cover" /> : <PromptCoverFallback title={item.title} />}
                 </button>
             }
         >
@@ -57,5 +59,19 @@ export function PromptCard({
                 {extraAction}
             </div>
         </Card>
+    );
+}
+
+function PromptCoverFallback({ title }: { title: string }) {
+    return (
+        <div className="flex aspect-[4/3] w-full flex-col justify-between bg-stone-100 p-4 text-stone-500 dark:bg-stone-900 dark:text-stone-400">
+            <div className="grid size-10 place-items-center rounded-lg border border-stone-200 bg-white/70 dark:border-stone-800 dark:bg-stone-950/70">
+                <ImageIcon className="size-5" />
+            </div>
+            <div>
+                <div className="text-xs">未设置封面</div>
+                <div className="mt-1 line-clamp-2 text-sm font-semibold text-stone-800 dark:text-stone-200">{title}</div>
+            </div>
+        </div>
     );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Input, InputNumber, Select } from "antd";
+import { Button, Input, InputNumber, Select, Space } from "antd";
 import { LoaderCircle, Play, RotateCcw, Square } from "lucide-react";
 
 import { useI18n } from "@/i18n/use-i18n";
@@ -54,7 +54,12 @@ export function GenerationNode({ node, detail, referenceSets, onPatch, onGenerat
                 />
                 <div className="grid grid-cols-[minmax(0,1fr)_132px] gap-2">
                     <Input size="small" value={node.metadata?.model || ""} placeholder={t("common.model")} onChange={(event) => onPatch(node.id, { model: event.target.value })} />
-                    <InputNumber size="small" min={1} max={8} value={node.metadata?.count || 1} onChange={(count) => onPatch(node.id, { count: Number(count) || 1 })} addonBefore={t("generation.node.outputCount")} />
+                    <Space.Compact size="small" className="w-full">
+                        <span className="inline-flex h-6 shrink-0 items-center rounded-l-md border px-2 text-xs" style={{ borderColor: theme.node.stroke, background: theme.node.fill, color: theme.node.muted }}>
+                            {t("generation.node.outputCount")}
+                        </span>
+                        <InputNumber className="!w-full" size="small" min={1} max={8} value={node.metadata?.count || 1} onChange={(count) => onPatch(node.id, { count: Number(count) || 1 })} />
+                    </Space.Compact>
                 </div>
                 <TextArea size="small" rows={3} value={node.metadata?.prompt || node.metadata?.content || ""} placeholder={t("generation.node.prompt")} onChange={(event) => onPatch(node.id, { prompt: event.target.value })} />
             </div>

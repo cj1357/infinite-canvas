@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { App, Button, Input, InputNumber, Segmented, Switch } from "antd";
+import { App, Button, Input, InputNumber, Segmented, Space, Switch } from "antd";
 import { ArrowDown, ArrowUp, Image as ImageIcon, LoaderCircle, RefreshCw, X } from "lucide-react";
 
 import { useI18n } from "@/i18n/use-i18n";
@@ -361,10 +361,15 @@ function IntentRow({ intent, saving, onPatch }: { intent: ReferenceIntent; savin
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     return (
         <div className="rounded-lg border p-2" style={{ borderColor: theme.node.stroke, background: theme.node.fill }}>
-            <div className="grid gap-2 sm:grid-cols-[96px_minmax(0,1fr)_72px_56px]">
+            <div className="grid gap-2 sm:grid-cols-[96px_minmax(0,1fr)_112px_56px]">
                 <IntentPreview intent={intent} />
                 <Segmented size="small" value={intent.role} options={roles.map((role) => ({ value: role, label: t(`reference.role.${role}`) }))} onChange={(value) => onPatch({ role: value as ReferenceIntentRole })} />
-                <InputNumber size="small" min={0.1} max={2} step={0.1} value={intent.weight} onChange={(value) => onPatch({ weight: Number(value) || 1 })} addonBefore={t("reference.composer.weight")} />
+                <Space.Compact size="small" className="w-full">
+                    <span className="inline-flex h-6 shrink-0 items-center rounded-l-md border px-2 text-xs" style={{ borderColor: theme.node.stroke, background: theme.node.fill, color: theme.node.muted }}>
+                        {t("reference.composer.weight")}
+                    </span>
+                    <InputNumber className="!w-full" size="small" min={0.1} max={2} step={0.1} value={intent.weight} onChange={(value) => onPatch({ weight: Number(value) || 1 })} />
+                </Space.Compact>
                 <Switch size="small" checked={intent.enabled} loading={saving} onChange={(enabled) => onPatch({ enabled })} />
             </div>
             <div className="mt-2 grid gap-2 sm:grid-cols-[56px_minmax(0,1fr)]">
