@@ -27,6 +27,7 @@ import {
 import type { CanvasNodeData } from "../types";
 import {
     getReferenceSourceBinding,
+    isReferenceSourceAdded,
     isReferenceSourceAvailable,
     normalizeReferencePreviewOutput,
     referenceSourceKey,
@@ -169,6 +170,7 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
                 enabled: true,
                 sortOrder: detail.intents.length,
                 note: "",
+                metadataJson: { canvasNodeId: source.id, canvasNodeTitle: source.title },
             });
             const next = await getReferenceSet(detail.referenceSet.id);
             setDetail(next);
@@ -243,6 +245,7 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
                 enabled: patch.enabled ?? intent.enabled,
                 sortOrder: patch.sortOrder ?? intent.sortOrder,
                 note: patch.note ?? intent.note,
+                metadataJson: intent.metadataJson,
             });
             const next = { ...detail, intents: detail.intents.map((item) => (item.id === updated.id ? updated : item)) };
             setDetail(next);
@@ -309,7 +312,7 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
                                 key={source.id}
                                 node={source}
                                 boundSources={boundSources}
-                                added={sourceKeySet.has(referenceSourceKey(source, boundSources))}
+                                added={isReferenceSourceAdded(source, boundSources, detail?.intents || [])}
                                 saving={savingId === source.id}
                                 onAdd={() => void addSource(source)}
                             />

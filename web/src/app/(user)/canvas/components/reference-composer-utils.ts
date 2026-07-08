@@ -1,4 +1,4 @@
-import type { CompileReferenceSetPreviewOutput } from "@/services/api/creative";
+import type { CompileReferenceSetPreviewOutput, ReferenceIntent } from "@/services/api/creative";
 import type { CanvasNodeData } from "../types";
 
 export type ReferenceSourceBinding = {
@@ -33,4 +33,18 @@ export function isReferenceSourceAvailable(node: CanvasNodeData, boundSources: B
 export function referenceSourceKey(node: CanvasNodeData, boundSources: BoundReferenceSources) {
     const binding = getReferenceSourceBinding(node, boundSources);
     return binding.mediaObjectId ? `media:${binding.mediaObjectId}` : binding.assetId ? `asset:${binding.assetId}` : node.id;
+}
+
+export function isReferenceSourceAdded(node: CanvasNodeData, boundSources: BoundReferenceSources, intents: ReferenceIntent[]) {
+    const binding = getReferenceSourceBinding(node, boundSources);
+    return intents.some((intent) => {
+        if (binding.mediaObjectId && intent.mediaObjectId === binding.mediaObjectId) return true;
+        if (binding.assetId && intent.assetId === binding.assetId) return true;
+        return referenceIntentCanvasNodeId(intent) === node.id;
+    });
+}
+
+function referenceIntentCanvasNodeId(intent: ReferenceIntent) {
+    const metadata = intent.metadataJson;
+    return metadata && typeof metadata === "object" && !Array.isArray(metadata) && typeof (metadata as { canvasNodeId?: unknown }).canvasNodeId === "string" ? (metadata as { canvasNodeId: string }).canvasNodeId : "";
 }

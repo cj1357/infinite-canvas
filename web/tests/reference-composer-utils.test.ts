@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 
-import { getReferenceSourceBinding, isReferenceSourceAvailable, normalizeReferencePreviewOutput, referenceSourceKey } from "../src/app/(user)/canvas/components/reference-composer-utils";
+import { getReferenceSourceBinding, isReferenceSourceAdded, isReferenceSourceAvailable, normalizeReferencePreviewOutput, referenceSourceKey } from "../src/app/(user)/canvas/components/reference-composer-utils";
 import type { CanvasNodeData } from "../src/app/(user)/canvas/types";
-import type { CompileReferenceSetPreviewOutput } from "../src/services/api/creative";
+import type { CompileReferenceSetPreviewOutput, ReferenceIntent } from "../src/services/api/creative";
 
 describe("reference composer utils", () => {
     test("normalizes null preview arrays from the server", () => {
@@ -34,5 +34,24 @@ describe("reference composer utils", () => {
         expect(isReferenceSourceAvailable(node, {})).toBe(true);
         expect(getReferenceSourceBinding(node, {})).toEqual({ mediaObjectId: "", assetId: "" });
         expect(referenceSourceKey(node, { "node-local-image": { mediaObjectId: "media-1" } })).toBe("media:media-1");
+    });
+
+    test("recognizes local source nodes already linked by reference intent metadata", () => {
+        const node = {
+            id: "node-local-image",
+            type: "image",
+            title: "画布图片",
+            metadata: {
+                content: "blob:http://localhost/image",
+            },
+        } as CanvasNodeData;
+        const intent = {
+            id: "intent-1",
+            mediaObjectId: "media-1",
+            assetId: "",
+            metadataJson: { canvasNodeId: "node-local-image" },
+        } as ReferenceIntent;
+
+        expect(isReferenceSourceAdded(node, {}, [intent])).toBe(true);
     });
 });
