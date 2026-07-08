@@ -33,4 +33,12 @@ describe("ui warning patterns", () => {
         expect(file).toContain("sourceMode: options.sourceMode");
         expect(file).toContain("metadataJson: intent.metadataJson");
     });
+
+    test("reference composer source menu exposes every reference role shortcut", () => {
+        const file = source("src/app/(user)/canvas/components/reference-composer.tsx");
+        expect(file).toContain("reference.composer.sourceWhole");
+        expect(file).toContain("reference.composer.sourceRegion");
+        expect(file).toContain("reference.composer.sourceStyle");
+        expect(file).toContain("reference.composer.sourceComposition");
+    });
 });

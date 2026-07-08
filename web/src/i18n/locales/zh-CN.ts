@@ -38,6 +38,7 @@ export const zhCN = {
     "reference.composer.sourceWhole": "整图参考",
     "reference.composer.sourceRegion": "框选局部",
     "reference.composer.sourceStyle": "提取风格",
+    "reference.composer.sourceComposition": "构图参考",
     "reference.composer.unavailable": "未绑定云端媒体",
     "reference.composer.weight": "权重",
     "reference.composer.notePlaceholder": "给这个参考补一句约束",

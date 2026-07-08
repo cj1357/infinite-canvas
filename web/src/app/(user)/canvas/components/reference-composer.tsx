@@ -54,7 +54,7 @@ type ReferenceComposerProps = {
 };
 
 type IntentPatch = Partial<Pick<ReferenceIntent, "role" | "weight" | "enabled" | "sortOrder" | "note">>;
-type SourceIntentMode = "whole" | "region" | "style";
+type SourceIntentMode = "whole" | "region" | "style" | "composition";
 type SourceIntentOptions = {
     role: ReferenceIntentRole;
     weight?: number;
@@ -219,6 +219,10 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
 
     const addStyleSource = async (source: CanvasNodeData) => {
         await createSourceIntent(source, { role: "style", sourceMode: "style" });
+    };
+
+    const addCompositionSource = async (source: CanvasNodeData) => {
+        await createSourceIntent(source, { role: "composition", sourceMode: "composition" });
     };
 
     const addRegionSource = async (source: CanvasNodeData, draft: RegionIntentDraft) => {
@@ -386,6 +390,7 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
                                 onAddWhole={() => void addSource(source)}
                                 onAddRegion={() => setRegionSource(source)}
                                 onAddStyle={() => void addStyleSource(source)}
+                                onAddComposition={() => void addCompositionSource(source)}
                             />
                         ))
                     ) : (
@@ -450,6 +455,7 @@ function SourceButton({
     onAddWhole,
     onAddRegion,
     onAddStyle,
+    onAddComposition,
 }: {
     node: CanvasNodeData;
     boundSources: BoundReferenceSources;
@@ -458,6 +464,7 @@ function SourceButton({
     onAddWhole: () => void;
     onAddRegion: () => void;
     onAddStyle: () => void;
+    onAddComposition: () => void;
 }) {
     const { t } = useI18n();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
@@ -466,6 +473,7 @@ function SourceButton({
         { key: "whole", label: t("reference.composer.sourceWhole") },
         { key: "region", label: t("reference.composer.sourceRegion") },
         { key: "style", label: t("reference.composer.sourceStyle") },
+        { key: "composition", label: t("reference.composer.sourceComposition") },
     ];
     const onMenuClick: MenuProps["onClick"] = ({ key }) => {
         if (key === "region") {
@@ -474,6 +482,10 @@ function SourceButton({
         }
         if (key === "style") {
             onAddStyle();
+            return;
+        }
+        if (key === "composition") {
+            onAddComposition();
             return;
         }
         onAddWhole();

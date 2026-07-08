@@ -38,6 +38,7 @@ export const enUS = {
     "reference.composer.sourceWhole": "Whole image",
     "reference.composer.sourceRegion": "Select region",
     "reference.composer.sourceStyle": "Use style",
+    "reference.composer.sourceComposition": "Use composition",
     "reference.composer.unavailable": "No cloud media",
     "reference.composer.weight": "Weight",
     "reference.composer.notePlaceholder": "Add a constraint for this reference",
