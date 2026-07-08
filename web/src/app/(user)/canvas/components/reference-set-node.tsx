@@ -23,7 +23,7 @@ export function ReferenceSetNode({ node, detail, onOpen }: ReferenceSetNodeProps
     const total = intents.length || node.metadata?.referenceIntentCount || 0;
 
     return (
-        <button type="button" className="flex h-full w-full cursor-pointer flex-col px-3 pb-3 pt-7 text-left" style={{ color: theme.node.text }} onMouseDown={(event) => event.stopPropagation()} onClick={onOpen}>
+        <div className="flex h-full w-full cursor-move flex-col px-3 pb-3 pt-7 text-left" style={{ color: theme.node.text }}>
             <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                     <div className="flex items-center gap-2 text-sm font-semibold">
@@ -34,9 +34,20 @@ export function ReferenceSetNode({ node, detail, onOpen }: ReferenceSetNodeProps
                         {total ? t("reference.node.count", { count: total }) : t("reference.node.empty")}
                     </div>
                 </div>
-                <span className="grid size-8 shrink-0 place-items-center rounded-md border" style={{ borderColor: theme.node.stroke, background: theme.node.fill }}>
+                <button
+                    type="button"
+                    className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-md border"
+                    style={{ borderColor: theme.node.stroke, background: theme.node.fill }}
+                    onMouseDown={(event) => event.stopPropagation()}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        onOpen();
+                    }}
+                    aria-label={t("reference.composer.title")}
+                >
                     <SlidersHorizontal className="size-4" />
-                </span>
+                </button>
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-1.5">
@@ -49,7 +60,7 @@ export function ReferenceSetNode({ node, detail, onOpen }: ReferenceSetNodeProps
                     </div>
                 ))}
             </div>
-        </button>
+        </div>
     );
 }
 
