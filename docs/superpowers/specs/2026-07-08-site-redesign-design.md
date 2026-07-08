@@ -1,358 +1,358 @@
-# Infinite Canvas Site Redesign Design Spec
+# 无限画布全站重设计规格
 
-## Design Read
+## 设计判断
 
-This redesign treats Infinite Canvas as a creator SaaS product, not a single AI image page. The product should feel like a compact creative operating system: fast to enter, precise while working, beautiful enough to invite daily use, and structured enough to support accounts, credits, assets, prompt libraries, projects, and future team spaces.
+这次重设计要把“无限画布”当成一个个人创作者 SaaS 产品，而不是一个单独的 AI 生图页面。产品应该像一个紧凑的创作操作系统：进入快、工作时精准、视觉上足够漂亮到让人愿意每天打开，同时也能承载账号、会员额度、素材、提示词库、项目和未来团队空间。
 
-The recommended direction is **Studio OS** as the primary system, with selective support from three secondary directions:
+推荐主方向是 **Studio OS 创作操作系统**，再选择性吸收三个辅助方向：
 
-- **Creative Gallery** for the homepage showcase, prompt library, and asset library.
-- **Canvas Lab** for canvas, agent, generation queue, reference groups, and model controls.
-- **Light Pro** for account, admin, and future SaaS management surfaces.
+- **Creative Gallery 创作者画廊**：用于首页展示、提示词库和素材库。
+- **Canvas Lab 画布实验室**：用于画布、Agent、生成队列、参考图组和模型控制。
+- **Light Pro 明亮专业版**：用于账号、后台和未来 SaaS 管理页面。
 
-## Goals
+## 目标
 
-- Make the whole site look intentional, premium, and coherent across homepage, workbenches, canvas, libraries, account, and admin.
-- Keep the product app-first. The first screen should help users start or continue creating, not behave like a generic landing page.
-- Preserve the strong infinite-canvas identity while reducing visual noise and improving hierarchy.
-- Create a design system that can support SaaS growth: user state, membership, usage, projects, storage, API gateway settings, and admin pages.
-- Improve perceived quality without changing model-generation behavior in this design phase.
+- 让首页、工作台、画布、资源库、账号和后台看起来像同一个成熟产品。
+- 保持应用优先。首屏应该帮助用户开始或继续创作，而不是像通用营销页。
+- 保留无限画布的强识别度，同时降低视觉噪音、提升层级。
+- 建立能支撑 SaaS 增长的设计系统：用户状态、会员、额度、项目、存储、API 网关配置和后台管理。
+- 在这个设计阶段提升感知质量，不改变模型生成行为。
 
-## Non-Goals
+## 非目标
 
-- Do not redesign the core canvas interaction model in this phase.
-- Do not introduce a new UI framework.
-- Do not rewrite data storage, model requests, or backend contracts as part of visual redesign.
-- Do not add team collaboration, billing checkout, or public marketplace behavior in this phase.
-- Do not remove existing pages or routes unless a later implementation plan explicitly scopes it.
+- 本阶段不重设计画布核心交互模型。
+- 不引入新的 UI 框架。
+- 不重写数据存储、模型请求或后端接口。
+- 不在本阶段新增团队协作、支付结账或公开市场能力。
+- 不删除现有页面或路由，除非后续实施计划明确纳入范围。
 
-## Core Product Model
+## 核心产品模型
 
-The site should be organized around four creator loops:
+全站应该围绕四个创作者循环组织：
 
-1. **Start**: create a canvas, open a recent canvas, start image/video/audio generation, or load a prompt.
-2. **Compose**: combine prompt text, reference images, reference video/audio, model settings, and reusable assets.
-3. **Generate**: run generation, track progress, inspect results, reuse results as references, and save successful outputs.
-4. **Organize**: collect canvases, prompts, generated media, assets, and account settings.
+1. **开始**：创建画布、打开最近画布、开始图片/视频/音频生成，或载入提示词。
+2. **组合**：组合提示词、参考图、参考视频/音频、模型设置和可复用素材。
+3. **生成**：运行生成、跟踪进度、检查结果、把结果复用为参考并保存成功输出。
+4. **整理**：沉淀画布、提示词、生成媒体、素材和账号设置。
 
-The redesigned UI should make these loops visible without explaining them in marketing copy.
+重设计后的 UI 应该让这些循环自然可见，而不是靠大段营销文案解释。
 
-## Visual System
+## 视觉系统
 
-### Theme
+### 主题
 
-Use a dual-theme system:
+使用双主题系统：
 
-- **Dark Studio** is the default for homepage, canvas, and creative workbenches.
-- **Light Pro** is available for account, admin, and users who prefer bright UI.
+- **Dark Studio 深色工作室**：作为首页、画布和创作工作台的默认气质。
+- **Light Pro 明亮专业版**：用于账号、后台，以及偏好浅色 UI 的用户。
 
-The dark theme should use off-black and graphite tones, not pure black. The light theme should use neutral paper and soft gray, not warm beige.
+深色主题应该使用偏石墨的近黑色和炭灰，不使用纯黑。浅色主题使用冷白、雾灰和浅中性色，不走暖米色路线。
 
-### Palette
+### 色彩
 
-Recommended palette:
+推荐色彩方向：
 
-- Background dark: graphite black, charcoal, near-black neutral.
-- Background light: cool white, mist gray, pale neutral.
-- Surface dark: layered graphite panels with subtle borders.
-- Surface light: white and light gray panels with minimal shadow.
-- Accent: one primary accent, preferably electric cyan or clean lime. Use it for focus, active navigation, generation state, and key progress moments.
-- Destructive: existing red semantics.
-- Success: restrained green only for status, not decoration.
+- 深色背景：石墨黑、炭灰、近黑中性色。
+- 浅色背景：冷白、雾灰、浅中性色。
+- 深色表面：带细边框的分层石墨面板。
+- 浅色表面：白色和浅灰面板，少量阴影。
+- 强调色：只使用一个主强调色，优先电青色或干净的青柠色。用于焦点、当前导航、生成状态和关键进度。
+- 危险色：沿用现有红色语义。
+- 成功色：只用于状态，不作为装饰。
 
-Avoid purple-blue AI gradients, heavy glassmorphism, beige luxury palettes, and multi-accent dashboards.
+避免紫蓝 AI 渐变、重度玻璃拟态、米色奢华调和多强调色仪表盘。
 
-### Typography
+### 字体
 
-Use a sharper, more product-grade sans stack through `next/font` if implementation allows. Good candidates:
+如果实施时条件允许，通过 `next/font` 使用更锋利、更产品化的无衬线字体组合。候选：
 
-- `Geist` / `Geist Mono` for precise SaaS product feel.
-- `Satoshi` / `JetBrains Mono` if a more editorial studio tone is desired.
+- `Geist` / `Geist Mono`：适合精准 SaaS 产品感。
+- `Satoshi` / `JetBrains Mono`：适合更偏编辑感的工作室气质。
 
-Typography rules:
+字体规则：
 
-- Large display text only on true homepage hero or empty-state moments.
-- Dense app panels use compact headings, medium weights, and tabular numbers.
-- Avoid huge headings inside tool surfaces.
-- Chinese copy should stay concise and functional.
-- Use mono or tabular numerals for version, count, duration, quota, and generation metadata.
+- 大号展示字只用于真正的首页首屏或重要空状态。
+- 密集应用面板使用紧凑标题、中等字重和等宽/表格数字。
+- 工具表面内部不要使用巨大标题。
+- 中文文案保持简洁、功能性强。
+- 版本号、数量、耗时、额度和生成元数据使用等宽或表格数字。
 
-### Shape
+### 形状
 
-Use one radius system:
+采用统一圆角系统：
 
-- App panels: 12px.
-- Inner controls: 8px.
-- Icon buttons: 8px or circle only when the icon is spatially centered.
-- Image and media thumbnails: 8px.
-- Avoid mixed pill-heavy UI except for tags and segmented controls where it is expected.
+- 应用面板：12px。
+- 内部控件：8px。
+- 图标按钮：8px；只有图标真正居中时才使用圆形。
+- 图片和媒体缩略图：8px。
+- 避免过度胶囊化，标签和分段控件可以例外。
 
-### Texture and Background
+### 纹理和背景
 
-Keep the grid identity, but make it quieter and more purposeful:
+保留网格识别度，但让它更安静、更有用途：
 
-- Homepage: broad, low-contrast drafting grid with one or two structural guide lines.
-- Canvas: denser grid with stronger zoom feedback.
-- Admin/account: no dotted decoration; use clean SaaS surfaces.
+- 首页：低对比的大幅制图网格，加一到两条结构辅助线。
+- 画布：更密的网格，并配合更清晰的缩放反馈。
+- 后台/账号：不使用点阵装饰，采用干净 SaaS 表面。
 
-Do not use decorative orbs or random bokeh. Any visual texture should support canvas, project space, or media preview.
+不要使用装饰性光球、随机散景。任何纹理都应该服务于画布、项目空间或媒体预览。
 
-## Navigation And App Shell
+## 导航和应用外壳
 
-### Desktop
+### 桌面端
 
-The top navigation should become a compact SaaS app shell:
+顶部导航应成为紧凑的 SaaS 应用外壳：
 
-- Left: logo and product name.
-- Center: primary workspace routes: 我的画布, 生图工作台, 视频创作台, 提示词库, 我的素材.
-- Right: docs/help icon, settings, theme, account/member state, admin entry when allowed.
+- 左侧：Logo 和产品名。
+- 中间：核心工作区路由：我的画布、生图工作台、视频创作台、提示词库、我的素材。
+- 右侧：文档/帮助、设置、主题、账号/会员状态、管理员入口。
 
-Active state should be clear but quiet: thin underline, accent dot, or subtle text contrast. Avoid heavy pill backgrounds in the top nav.
+当前页面状态要清楚但克制：可以使用细下划线、强调色小点或轻微文字对比。顶部导航避免厚重胶囊背景。
 
-### Canvas Route
+### 画布路由
 
-Canvas detail routes should stay immersive and hide the normal site nav. Canvas-owned top controls should remain minimal and flat.
+画布详情页保持沉浸式，隐藏普通站点导航。画布自己的顶部控制区继续保持极简、扁平。
 
-### Mobile
+### 移动端
 
-Use a bottom-leaning or drawer-based app menu. Prioritize:
+使用抽屉式或偏底部的应用菜单。优先级：
 
-- Continue recent canvas.
-- Start generation.
-- Open library.
-- Account.
+- 继续最近画布。
+- 开始生成。
+- 打开资源库。
+- 账号。
 
-Do not attempt to fit the full desktop nav into one horizontal row on small screens.
+不要试图把完整桌面导航塞进移动端一行横向菜单。
 
-## Homepage Redesign
+## 首页重设计
 
-The homepage should become a creation dashboard with marketing quality, not a static landing hero.
+首页应该变成带有营销质感的创作仪表盘，而不是静态落地页。
 
-### First View
+### 首屏
 
-Structure:
+结构：
 
-- Left or center-left: product name and short positioning.
-- Primary action: start or continue the most relevant workflow.
-- Secondary actions: open canvas, image workbench, prompt library.
-- Right or lower area: live-feeling preview made from real product cards: recent canvas, reference group, generation config, result thumbnails.
+- 左侧或中左：产品名和一句短定位。
+- 主操作：开始或继续最相关的创作流程。
+- 次操作：打开画布、生图工作台、提示词库。
+- 右侧或下方：由真实产品卡片组成的实时感预览，例如最近画布、参考图组、生成配置、结果缩略图。
 
-Suggested copy:
+建议文案：
 
-- Title: `无限画布`
-- Subtitle: `把提示词、参考图、模型参数和生成结果放进同一个创作空间。`
-- Primary CTA: `开始创作`
-- Secondary CTA: `打开画布`
+- 标题：`无限画布`
+- 副标题：`把提示词、参考图、模型参数和生成结果放进同一个创作空间。`
+- 主按钮：`开始创作`
+- 次按钮：`打开画布`
 
-Do not use long explanatory paragraphs or feature text in the hero.
+首屏不要放长解释段落，也不要堆功能介绍。
 
-### Dashboard Band
+### 仪表盘区
 
-Below the first view, show app-like modules:
+首屏下方展示应用化模块：
 
-- 最近画布: 3 to 5 project cards.
-- 快速开始: 生图, 视频, 文本, 音频, 参考图组.
-- 最近结果: generated media cards when available.
-- 创作资产: prompt count, asset count, local storage status, future cloud status when implemented.
+- 最近画布：3 到 5 个项目卡片。
+- 快速开始：生图、视频、文本、音频、参考图组。
+- 最近结果：有数据时展示生成媒体卡片。
+- 创作资产：提示词数量、素材数量、本地存储状态，云端状态只在实现后展示。
 
-Empty states should be polished and useful, not blank.
+空状态要精致且有用，不能只是空白。
 
-### Prompt Showcase
+### 提示词展示
 
-Keep the current prompt gallery idea, but redesign it as an editorial masonry section:
+保留当前提示词画廊思路，但改成编辑感更强的瀑布流区域：
 
-- Consistent image behavior and aspect ratios.
-- Better skeleton/error fallback for missing cover images.
-- Stronger card hierarchy: image, title, tags, compact prompt preview.
-- Use real visual media as the main draw.
+- 图片行为和比例更稳定。
+- 缺少封面图时有更好的骨架屏或错误兜底。
+- 卡片层级更明确：图片、标题、标签、紧凑提示词预览。
+- 真实视觉媒体是主要吸引点。
 
-## Canvas Redesign
+## 画布重设计
 
-Canvas should feel like the deepest part of the product.
+画布应该是产品里最深、最专业的区域。
 
-### Keep
+### 保留
 
-- Immersive grid.
-- Floating toolbar.
-- Minimal top-right status controls.
-- Node-based generation and reference workflow.
-- Right-side Agent panel as a product feature.
+- 沉浸式网格。
+- 浮动工具栏。
+- 极简顶部状态控制。
+- 基于节点的生成和参考工作流。
+- 右侧 Agent 面板作为产品能力。
 
-### Improve
+### 改进
 
-- Reduce visual weight of node borders and panels.
-- Make selected, hover, dragging, and disabled states more consistent.
-- Standardize node header layout across generation node, reference set node, result group node, and media nodes.
-- Make config composer feel like a compact instrument panel, not a modal inside the canvas.
-- Use accent only for state: selected, active generation, connected, or requires attention.
+- 降低节点边框和面板的视觉重量。
+- 统一选中、悬停、拖拽和禁用状态。
+- 标准化生成节点、参考图组节点、结果组节点和媒体节点的头部布局。
+- 让配置组合器更像紧凑仪表盘，而不是画布里的弹窗。
+- 强调色只用于状态：选中、正在生成、已连接、需要注意。
 
-### Node Visual Hierarchy
+### 节点视觉层级
 
-Suggested hierarchy:
+建议层级：
 
-- Media nodes: image/video/audio preview first, metadata second.
-- Generation nodes: prompt and model state first, run controls second.
-- Reference set nodes: reference categories and counts first, edit action second.
-- Result group nodes: generated outputs first, reuse/save/download actions second.
+- 媒体节点：图片/视频/音频预览第一，元数据第二。
+- 生成节点：提示词和模型状态第一，运行控制第二。
+- 参考图组节点：参考类别和数量第一，编辑动作第二。
+- 结果组节点：生成输出第一，复用/保存/下载动作第二。
 
-## Workbench Pages
+## 工作台页面
 
-Image, video, and future audio pages should share one workbench layout.
+生图、视频和未来音频页面应共享同一套工作台布局。
 
-### Layout
+### 布局
 
-Desktop:
+桌面端：
 
-- Left column: history/session list.
-- Center column: prompt and references.
-- Right/main column: results.
-- Settings are either a collapsible side panel or a compact inspector, not scattered.
+- 左栏：历史记录/会话列表。
+- 中栏：提示词和参考素材。
+- 右侧/主区域：生成结果。
+- 设置放进可折叠侧栏或紧凑检查器，不要散落在页面各处。
 
-Mobile:
+移动端：
 
-- Prompt first.
-- Results second.
-- History/settings in drawers.
+- 提示词优先。
+- 结果第二。
+- 历史和设置放进抽屉。
 
-### Shared Workbench System
+### 共享工作台系统
 
-Create a shared visual language, even if implementation keeps files separate:
+即使实现时文件仍然分开，也要建立共享视觉语言：
 
-- Consistent section headers.
-- Consistent empty, loading, failed, and success cards.
-- Consistent reference image strips.
-- Consistent action rows for save, reuse, download, and delete.
+- 统一的区域标题。
+- 统一的空、加载、失败、成功卡片。
+- 统一的参考图条。
+- 统一的保存、复用、下载、删除动作行。
 
-## Prompt Library
+## 提示词库
 
-Prompt library should feel like a reusable creative memory system.
+提示词库应该像一个可复用的创作记忆系统。
 
-Design requirements:
+设计要求：
 
-- Search and filters should be prominent but compact.
-- Prompt cards should support cover image, tags, title, preview text, source/type, and primary action.
-- Detail view should make copy, use in workbench, and save/edit actions obvious.
-- Empty and failed states should explain the next action in one sentence.
+- 搜索和筛选要明显但紧凑。
+- 提示词卡片支持封面图、标签、标题、预览文本、来源/类型和主操作。
+- 详情视图要让复制、用于工作台、保存/编辑动作一眼可见。
+- 空状态和失败状态用一句话说明下一步动作。
 
-Avoid making every prompt card the same size if the content is naturally visual. Masonry or mixed-size grids are acceptable.
+如果内容本身偏视觉，不必强行让每张提示词卡片一样大。可以使用瀑布流或混合尺寸网格。
 
-## Asset Library
+## 素材库
 
-The asset library should feel like a local media vault now and a cloud asset library later.
+素材库现在应该像本地媒体仓库，未来可以自然升级为云端资产库。
 
-Design requirements:
+设计要求：
 
-- Clear tabs or filters for image, text, video, audio, and all.
-- Media cards should emphasize preview and reuse action.
-- Bulk actions should be visible only when selecting.
-- Storage status should be factual: current local storage, future cloud/R2 only when implemented.
+- 为图片、文本、视频、音频和全部内容提供清晰标签页或筛选。
+- 媒体卡片突出预览和复用动作。
+- 批量操作只在选择状态下显示。
+- 存储状态必须真实：当前是本地存储；云端/R2 只在实现后展示。
 
-Do not imply cloud sync until it exists.
+在云同步真正实现前，不要暗示已经支持云同步。
 
-## Account And Admin
+## 账号和后台
 
-These pages should use the Light Pro / clean SaaS language by default, while still supporting dark mode.
+这些页面默认使用 Light Pro / 干净 SaaS 语言，同时支持深色模式。
 
-Account page priorities:
+账号页优先级：
 
-- User identity and login state.
-- Membership or quota state.
-- API/base URL configuration if exposed to end users.
-- Storage and privacy notes.
+- 用户身份和登录状态。
+- 会员或额度状态。
+- 如果对终端用户暴露，则展示 API/base URL 配置。
+- 存储和隐私说明。
 
-Admin page priorities:
+后台页优先级：
 
-- Dense but readable tables.
-- Clear status badges.
-- Direct edit actions.
-- No decorative marketing layout.
+- 密集但可读的表格。
+- 清楚的状态徽标。
+- 直接编辑动作。
+- 不使用装饰性营销布局。
 
-## Internationalization
+## 国际化
 
-The design must support multiple languages.
+设计必须支持多语言。
 
-Rules:
+规则：
 
-- Avoid layout that depends on short Chinese labels only.
-- Buttons must allow labels to expand without breaking.
-- Navigation should handle longer English strings.
-- Cards should clamp copy predictably.
-- Text should not be embedded in generated images or decorative backgrounds.
+- 不依赖只有中文短标签才成立的布局。
+- 按钮要允许标签变长而不破版。
+- 导航要能容纳更长的英文字符串。
+- 卡片文案要有可预测的截断。
+- 不要把文字嵌进生成图片或装饰背景里。
 
-Implementation should keep visible strings compatible with the existing i18n direction when that system is introduced.
+后续引入 i18n 系统时，所有可见文案应能自然接入。
 
-## Accessibility And Interaction
+## 可访问性和交互
 
-Requirements:
+要求：
 
-- Visible keyboard focus for every interactive element.
-- Hover, active, selected, disabled, loading, empty, and error states for shared components.
-- Minimum contrast suitable for dark and light themes.
-- No text over busy images without a scrim or solid text area.
-- Respect reduced motion for non-essential animations.
-- Avoid scroll traps in modals, drawers, and canvas side panels.
+- 每个可交互元素都有可见键盘焦点。
+- 共享组件具备悬停、按下、选中、禁用、加载、空状态和错误状态。
+- 深浅主题都满足基本对比度。
+- 忙碌图片上不能直接叠文字，必须有遮罩或稳定文字区域。
+- 非必要动画尊重减少动态效果设置。
+- Modal、Drawer 和画布侧边面板避免滚动陷阱。
 
-Motion should communicate product state:
+动效应该传达产品状态：
 
-- Page entry: subtle stagger for homepage modules.
-- Hover: small surface lift or border shift.
-- Generation: progress shimmer or structured pending skeleton.
-- Canvas: selected/dragging state should feel responsive, not flashy.
+- 页面进入：首页模块轻微错峰出现。
+- 悬停：表面轻微抬升或边框变化。
+- 生成中：进度微光或结构化等待骨架。
+- 画布：选中和拖拽状态要响应清楚，不要花哨。
 
-## Implementation Boundaries
+## 实施边界
 
-This redesign should be implemented in phases.
+这次重设计应分阶段落地。
 
-### Phase 1: Design System And Shell
+### 阶段 1：设计系统和应用外壳
 
-- Update global tokens, app theme, and shared utility classes.
-- Redesign top navigation and mobile navigation.
-- Establish shared page background and surface patterns.
-- Keep routes and data behavior unchanged.
+- 更新全局 token、Ant Design 主题和共享工具类。
+- 重设计顶部导航和移动端导航。
+- 建立共享页面背景和表面模式。
+- 保持路由和数据行为不变。
 
-### Phase 2: Homepage
+### 阶段 2：首页
 
-- Replace the centered hero with the Studio OS dashboard composition.
-- Redesign prompt showcase with robust image fallbacks.
-- Add homepage empty states for missing prompt data.
+- 用 Studio OS 仪表盘结构替换居中 hero。
+- 重设计提示词展示区，并加入稳健的图片兜底。
+- 为提示词数据缺失增加首页空状态。
 
-### Phase 3: Workbench Pages
+### 阶段 3：工作台页面
 
-- Unify image and video workbench visual structure.
-- Improve result cards, reference strips, history list, and settings drawers.
-- Keep model request behavior untouched.
+- 统一生图和视频工作台的视觉结构。
+- 改进结果卡片、参考图条、历史列表和设置抽屉。
+- 保持模型请求行为不变。
 
-### Phase 4: Library Pages
+### 阶段 4：资源库页面
 
-- Redesign prompt library and asset library around reusable creative memory.
-- Improve card layouts, filters, and detail modals.
+- 围绕可复用创作记忆重设计提示词库和素材库。
+- 改进卡片布局、筛选和详情弹窗。
 
-### Phase 5: Canvas Polish
+### 阶段 5：画布打磨
 
-- Standardize canvas node surfaces and states.
-- Refine toolbar, zoom controls, composer panel, Agent panel, and context actions.
-- Keep core canvas interactions intact.
+- 标准化画布节点表面和状态。
+- 优化工具栏、缩放控制、组合器面板、Agent 面板和上下文动作。
+- 保持核心画布交互不变。
 
-### Phase 6: Account And Admin
+### 阶段 6：账号和后台
 
-- Make account and admin pages feel like clean SaaS management screens.
-- Improve table density, status badges, forms, and empty states.
+- 让账号和后台页面成为干净的 SaaS 管理界面。
+- 改进表格密度、状态徽标、表单和空状态。
 
-## Success Criteria
+## 成功标准
 
-- The homepage immediately communicates a creator SaaS product, not a generic AI landing page.
-- Navigation and page structure feel consistent across all routes.
-- Canvas remains immersive but less visually heavy.
-- Workbench pages feel like part of the same product.
-- Prompt and asset libraries become desirable places to browse and reuse work.
-- Dark and light themes both look intentional.
-- Chinese UI works well, and longer future English labels do not break layout.
-- No page relies on model generation to look complete during local testing.
+- 首页能立即传达这是创作者 SaaS 产品，而不是通用 AI 落地页。
+- 导航和页面结构在所有路由中保持一致。
+- 画布仍然沉浸，但视觉负担更轻。
+- 工作台页面像同一个产品的一部分。
+- 提示词库和素材库成为用户愿意浏览、复用和整理的地方。
+- 深色和浅色主题都显得有意图。
+- 中文 UI 表现良好，未来较长英文标签不会破坏布局。
+- 本地测试时，不依赖模型生成也能让页面看起来完整。
 
-## Open Product Decisions For Later
+## 后续产品决策
 
-- Whether the public homepage should eventually differ from the logged-in dashboard.
-- Whether team spaces should appear in the primary nav or account menu.
-- Whether prompt/library content becomes public marketplace content.
-- Whether cloud asset storage is exposed as a user-facing feature before full sync exists.
+- 公开首页和登录后仪表盘是否最终拆成两个页面。
+- 团队空间未来放在主导航还是账号菜单。
+- 提示词库/素材库内容是否发展成公开市场。
+- 云端素材存储是否在完整同步实现前提前作为用户可见功能。
 
