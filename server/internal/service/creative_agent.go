@@ -116,7 +116,7 @@ func (s *CreativeAgentService) SendMessage(userID string, sessionID string, inpu
 			return AgentMessageResponse{}, err
 		}
 	}
-	session.Title = firstNonEmpty(session.Title, content)
+	session.Title = firstTrimmedNonEmpty(session.Title, content)
 	if err := s.repo.SaveAgentSession(&session); err != nil {
 		return AgentMessageResponse{}, err
 	}
@@ -289,7 +289,7 @@ func stringField(record map[string]any, key string) string {
 	return value
 }
 
-func firstNonEmpty(values ...string) string {
+func firstTrimmedNonEmpty(values ...string) string {
 	for _, value := range values {
 		value = strings.TrimSpace(value)
 		if value != "" {
