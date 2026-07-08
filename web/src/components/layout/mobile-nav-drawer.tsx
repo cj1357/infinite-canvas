@@ -17,7 +17,14 @@ export function MobileNavDrawer({ open, activeToolSlug, onClose }: MobileNavDraw
     const user = useUserStore((state) => state.user);
     const visibleTools = navigationTools.filter((tool) => !("adminOnly" in tool) || !tool.adminOnly || user?.role === "admin");
     return (
-        <Drawer title="导航" placement="left" size={280} open={open} onClose={onClose} className="md:hidden">
+        <Drawer title={null} placement="left" size={320} open={open} onClose={onClose} className="md:hidden">
+            <div className="mb-5 rounded-xl border border-border bg-accent/35 p-4">
+                <div className="text-lg font-semibold text-foreground">无限画布</div>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">从画布、工作台和素材库继续你的创作流程。</p>
+                <Link href="/canvas?mode=recent" onClick={onClose} className="mt-4 inline-flex h-9 items-center rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground transition hover:opacity-90">
+                    继续最近画布
+                </Link>
+            </div>
             <div className="space-y-1">
                 {visibleTools.map((tool) => {
                     const Icon = tool.icon;
@@ -28,11 +35,11 @@ export function MobileNavDrawer({ open, activeToolSlug, onClose }: MobileNavDraw
                             href={`/${tool.slug}`}
                             onClick={onClose}
                             className={cn(
-                                "flex items-center gap-3 rounded-lg px-3 py-3 text-base transition",
-                                active ? "bg-stone-100 font-medium text-stone-950 dark:bg-stone-800 dark:text-stone-100" : "text-stone-600 hover:bg-stone-100 hover:text-stone-950 dark:text-stone-300 dark:hover:bg-stone-800 dark:hover:text-stone-100",
+                                "studio-focus-ring flex items-center gap-3 rounded-lg px-3 py-3 text-base transition",
+                                active ? "bg-accent font-medium text-foreground" : "text-muted-foreground hover:bg-accent/70 hover:text-foreground",
                             )}
                         >
-                            <Icon className="size-5" />
+                            <Icon className={cn("size-5", active && "text-cyan-700 dark:text-cyan-300")} />
                             <span>{tool.label}</span>
                         </Link>
                     );

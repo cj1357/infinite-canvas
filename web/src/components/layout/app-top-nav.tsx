@@ -24,23 +24,25 @@ export function AppTopNav() {
     return (
         <>
             {!hideHeader ? (
-                <header className="sticky top-0 z-20 h-16 shrink-0 border-b border-stone-200 bg-background/90 backdrop-blur-xl dark:border-stone-800">
-                    <div className="mx-auto flex h-full max-w-7xl items-stretch justify-between gap-5 px-6">
+                <header className="sticky top-0 z-20 h-14 shrink-0 border-b border-border/75 bg-background/88 backdrop-blur-xl">
+                    <div className="mx-auto flex h-full max-w-[1440px] items-stretch justify-between gap-5 px-4 sm:px-6">
                         <div className="flex min-w-0 items-center">
-                            <Link href="/" className="flex h-full shrink-0 items-center gap-2 text-sm font-semibold leading-none tracking-tight text-stone-950 transition hover:text-stone-600 dark:text-stone-100 dark:hover:text-stone-300">
-                                <span
-                                    className="size-5 shrink-0 bg-current"
-                                    style={{
-                                        mask: "url(/logo.svg) center / contain no-repeat",
-                                        WebkitMask: "url(/logo.svg) center / contain no-repeat",
-                                    }}
-                                />
-                                <span className="text-base font-medium">无限画布</span>
+                            <Link href="/" className="group flex h-full shrink-0 items-center gap-2.5 text-sm font-semibold leading-none text-foreground transition hover:text-cyan-700 dark:hover:text-cyan-200">
+                                <span className="grid size-7 shrink-0 place-items-center rounded-lg border border-border bg-card/70 transition group-hover:border-cyan-400/70 group-hover:bg-cyan-400/10">
+                                    <span
+                                        className="size-4 bg-current"
+                                        style={{
+                                            mask: "url(/logo.svg) center / contain no-repeat",
+                                            WebkitMask: "url(/logo.svg) center / contain no-repeat",
+                                        }}
+                                    />
+                                </span>
+                                <span className="text-[15px] font-semibold tracking-tight">无限画布</span>
                             </Link>
 
                             <button
                                 type="button"
-                                className="ml-3 inline-flex size-8 shrink-0 items-center justify-center text-stone-600 transition hover:text-stone-950 md:hidden dark:text-stone-300 dark:hover:text-white"
+                                className="studio-focus-ring ml-3 inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-accent hover:text-foreground md:hidden"
                                 onClick={() => setMobileNavOpen(true)}
                                 aria-label="打开导航菜单"
                                 title="导航菜单"
@@ -48,7 +50,7 @@ export function AppTopNav() {
                                 <Menu className="size-5" />
                             </button>
 
-                            <nav className="hide-scrollbar ml-8 hidden h-16 min-w-0 items-center gap-7 overflow-x-auto md:flex">
+                            <nav className="hide-scrollbar ml-8 hidden h-14 min-w-0 items-center gap-1 overflow-x-auto md:flex">
                                 {visibleTools.map((tool) => {
                                     const Icon = tool.icon;
                                     const active = tool.slug === activeToolSlug;
@@ -56,14 +58,16 @@ export function AppTopNav() {
                                         <Link
                                             key={tool.slug}
                                             href={`/${tool.slug}`}
+                                            aria-current={active ? "page" : undefined}
                                             className={cn(
-                                                "relative flex h-16 shrink-0 items-center gap-2 text-sm leading-6 transition after:absolute after:inset-x-0 after:bottom-0 after:h-px",
+                                                "group relative flex h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-sm leading-6 transition",
                                                 active
-                                                    ? "font-medium text-stone-950 after:bg-stone-950 dark:text-stone-100 dark:after:bg-stone-100"
-                                                    : "text-stone-500 after:bg-transparent hover:text-stone-950 dark:text-stone-400 dark:hover:text-stone-100",
+                                                    ? "font-medium text-foreground"
+                                                    : "text-muted-foreground hover:bg-accent/70 hover:text-foreground",
                                             )}
                                         >
-                                            <Icon className="size-4" />
+                                            <span className={cn("absolute inset-x-3 -bottom-2 h-px origin-center scale-x-0 bg-cyan-500 transition dark:bg-cyan-300", active && "scale-x-100")} />
+                                            <Icon className={cn("size-4 transition", active ? "text-cyan-700 dark:text-cyan-300" : "text-muted-foreground group-hover:text-foreground")} />
                                             <span className="truncate">{tool.label}</span>
                                         </Link>
                                     );

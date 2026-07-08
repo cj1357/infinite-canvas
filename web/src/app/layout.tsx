@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
+import { Geist, Geist_Mono } from "next/font/google";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
 import { AppProviders } from "@/components/layout/app-providers";
 import "antd/dist/reset.css";
@@ -11,19 +12,26 @@ export const metadata: Metadata = {
     description: "一个无限画布创作工具",
 };
 
+const geistSans = Geist({
+    subsets: ["latin"],
+    variable: "--font-geist-sans",
+    display: "swap",
+});
+
+const geistMono = Geist_Mono({
+    subsets: ["latin"],
+    variable: "--font-geist-mono",
+    display: "swap",
+});
+
 export default function RootLayout({
     children,
 }: Readonly<{
     children: React.ReactNode;
 }>) {
     return (
-        <html lang="zh-CN" suppressHydrationWarning className="font-sans">
-            <body
-                className="bg-background text-foreground antialiased"
-                style={{
-                    fontFamily: '"SF Pro Display","SF Pro Text","PingFang SC","Microsoft YaHei","Helvetica Neue",sans-serif',
-                }}
-            >
+        <html lang="zh-CN" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} font-sans`}>
+            <body className="bg-background text-foreground antialiased">
                 <Script
                     id="theme-script"
                     strategy="beforeInteractive"

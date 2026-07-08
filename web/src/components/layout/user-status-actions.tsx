@@ -24,10 +24,13 @@ export function UserStatusActions({ showConfig = true, showReleaseLinks = true, 
     const setTheme = useThemeStore((state) => state.setTheme);
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
     const canvasTheme = canvasThemes[theme];
-    const naturalIconClass = "inline-flex size-7 shrink-0 items-center justify-center text-stone-600 transition hover:text-stone-950 dark:text-stone-300 dark:hover:text-white [&_svg]:size-4";
+    const naturalIconClass = cn(
+        "studio-focus-ring inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-accent hover:text-foreground [&_svg]:size-4",
+        variant === "canvas" && "hover:bg-white/10",
+    );
     const iconStyle: CSSProperties | undefined = variant === "canvas" ? { color: canvasTheme.node.text } : undefined;
     const versionStyle = iconStyle;
-    const gitHubClassName = "size-7 text-base";
+    const gitHubClassName = "size-8 rounded-lg text-base";
     const gitHubStyle = iconStyle;
 
     return (
