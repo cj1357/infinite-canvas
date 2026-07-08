@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -169,6 +170,10 @@ func (s *ReferenceService) UpdateReferenceIntent(userID string, id string, input
 	return item, s.repo.SaveReferenceIntent(&item)
 }
 
+func (s *ReferenceService) DeleteReferenceIntent(userID string, id string) error {
+	return s.repo.DeleteReferenceIntent(userID, id)
+}
+
 func (s *ReferenceService) CompileReferenceSetPreview(userID string, referenceSetID string, input CompileReferenceSetPreviewInput) (CompileReferenceSetPreviewOutput, error) {
 	set, err := s.repo.GetReferenceSet(userID, referenceSetID)
 	if err != nil {
@@ -195,7 +200,7 @@ func (s *ReferenceService) CompileReferenceSetPreview(userID string, referenceSe
 	}
 	references := make([]map[string]any, 0, len(enabled))
 	for index, item := range enabled {
-		lines = append(lines, fmt.Sprintf("%d. %s: %s Weight %.2f. %s", index+1, roleInstruction(input.Locale, item.Role), mediaRef(item), item.Weight, item.Note))
+		lines = append(lines, fmt.Sprintf("%d. %s: %s%s Weight %.2f. %s", index+1, roleInstruction(input.Locale, item.Role), mediaRef(item), referenceCropText(item.CropJSON), item.Weight, item.Note))
 		references = append(references, map[string]any{
 			"id":            item.ID,
 			"role":          item.Role,
@@ -231,6 +236,9 @@ func (s *ReferenceService) validateIntent(userID string, input ReferenceIntentIn
 	}
 	if input.SortOrder < 0 {
 		return errors.New("排序不能为负数")
+	}
+	if err := validateReferenceCrop(input.CropJSON); err != nil {
+		return err
 	}
 	if input.MediaObjectID != "" {
 		if _, err := s.repo.GetMediaObject(userID, input.MediaObjectID); err != nil {
@@ -306,6 +314,57 @@ func mediaRef(item model.ReferenceIntent) string {
 		return "asset:" + item.AssetID
 	}
 	return "unbound"
+}
+
+type referenceCropRect struct {
+	Type   string  `json:"type"`
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
+	Width  float64 `json:"width"`
+	Height float64 `json:"height"`
+}
+
+func validateReferenceCrop(value datatypes.JSON) error {
+	if _, ok := parseReferenceCrop(value); ok {
+		return nil
+	}
+	if emptyReferenceCrop(value) {
+		return nil
+	}
+	return errors.New("参考图裁剪区域无效")
+}
+
+func referenceCropText(value datatypes.JSON) string {
+	crop, ok := parseReferenceCrop(value)
+	if !ok {
+		return ""
+	}
+	return fmt.Sprintf(" crop x=%.2f y=%.2f w=%.2f h=%.2f", crop.X, crop.Y, crop.Width, crop.Height)
+}
+
+func parseReferenceCrop(value datatypes.JSON) (referenceCropRect, bool) {
+	if emptyReferenceCrop(value) {
+		return referenceCropRect{}, false
+	}
+	var crop referenceCropRect
+	if err := json.Unmarshal(value, &crop); err != nil {
+		return referenceCropRect{}, false
+	}
+	if crop.Type != "rect" {
+		return referenceCropRect{}, false
+	}
+	if crop.X < 0 || crop.Y < 0 || crop.Width < 0.01 || crop.Height < 0.01 {
+		return referenceCropRect{}, false
+	}
+	if crop.X+crop.Width > 1.000001 || crop.Y+crop.Height > 1.000001 {
+		return referenceCropRect{}, false
+	}
+	return crop, true
+}
+
+func emptyReferenceCrop(value datatypes.JSON) bool {
+	trimmed := strings.TrimSpace(string(value))
+	return len(value) == 0 || trimmed == "" || trimmed == "null" || trimmed == "{}"
 }
 
 func jsonObject(value datatypes.JSON) datatypes.JSON {

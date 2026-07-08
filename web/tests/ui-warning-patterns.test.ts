@@ -29,7 +29,8 @@ describe("ui warning patterns", () => {
 
     test("reference composer keeps canvas source metadata on reference intents", () => {
         const file = source("src/app/(user)/canvas/components/reference-composer.tsx");
-        expect(file).toContain("metadataJson: { canvasNodeId: source.id");
+        expect(file).toContain("canvasNodeId: source.id");
+        expect(file).toContain("sourceMode: options.sourceMode");
         expect(file).toContain("metadataJson: intent.metadataJson");
     });
 });

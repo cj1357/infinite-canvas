@@ -89,6 +89,7 @@ func New(repo *repository.Repository, store storage.Store, cfg config.Config) *g
 	protected.POST("/reference-sets/:id/intents", creativeHandler.CreateReferenceIntent)
 	protected.POST("/reference-sets/:id/compile-preview", creativeHandler.CompileReferenceSetPreview)
 	protected.PATCH("/reference-intents/:id", creativeHandler.UpdateReferenceIntent)
+	protected.DELETE("/reference-intents/:id", creativeHandler.DeleteReferenceIntent)
 	protected.GET("/creative-assets", creativeHandler.ListCreativeAssets)
 	protected.POST("/creative-assets", creativeHandler.CreateCreativeAsset)
 	protected.PATCH("/creative-assets/:id", creativeHandler.UpdateCreativeAsset)

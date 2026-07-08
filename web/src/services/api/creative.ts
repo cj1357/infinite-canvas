@@ -253,6 +253,10 @@ export function updateReferenceIntent(id: string, input: Partial<ReferenceIntent
     return serverRequest<ReferenceIntent>(`/reference-intents/${id}`, { method: "PATCH", body: JSON.stringify(input) });
 }
 
+export function deleteReferenceIntent(id: string) {
+    return serverRequest<null>(`/reference-intents/${id}`, { method: "DELETE" });
+}
+
 export function compileReferenceSetPreview(referenceSetId: string, input: CompileReferenceSetPreviewInput) {
     return serverRequest<CompileReferenceSetPreviewOutput>(`/reference-sets/${referenceSetId}/compile-preview`, { method: "POST", body: JSON.stringify(input) });
 }

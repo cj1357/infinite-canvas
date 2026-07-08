@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { App, Button, Input, InputNumber, Segmented, Space, Switch } from "antd";
-import { ArrowDown, ArrowUp, Image as ImageIcon, LoaderCircle, RefreshCw, X } from "lucide-react";
+import type { PointerEvent as ReactPointerEvent } from "react";
+import { App, Button, Dropdown, Input, InputNumber, Segmented, Space, Switch } from "antd";
+import type { MenuProps } from "antd";
+import { ArrowDown, ArrowUp, Image as ImageIcon, LoaderCircle, RefreshCw, Trash2, X } from "lucide-react";
 
 import { useI18n } from "@/i18n/use-i18n";
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -12,6 +14,7 @@ import {
     compileReferenceSetPreview,
     createReferenceIntent,
     createReferenceSet,
+    deleteReferenceIntent,
     getReferenceSet,
     listCreativeAssets,
     mediaObjectUrl,
@@ -26,12 +29,14 @@ import {
 } from "@/services/api/creative";
 import type { CanvasNodeData } from "../types";
 import {
+    countReferenceSourceIntents,
     getReferenceSourceBinding,
-    isReferenceSourceAdded,
     isReferenceSourceAvailable,
+    normalizeReferenceCropRect,
     normalizeReferencePreviewOutput,
     referenceSourceKey,
     type BoundReferenceSources,
+    type ReferenceCropRect,
 } from "./reference-composer-utils";
 
 const { TextArea } = Input;
@@ -49,6 +54,23 @@ type ReferenceComposerProps = {
 };
 
 type IntentPatch = Partial<Pick<ReferenceIntent, "role" | "weight" | "enabled" | "sortOrder" | "note">>;
+type SourceIntentMode = "whole" | "region" | "style";
+type SourceIntentOptions = {
+    role: ReferenceIntentRole;
+    weight?: number;
+    note?: string;
+    sourceMode: SourceIntentMode;
+    cropJson?: ReferenceCropRect;
+    regionLabel?: string;
+};
+type RegionIntentDraft = {
+    cropJson: ReferenceCropRect;
+    role: ReferenceIntentRole;
+    weight: number;
+    note: string;
+};
+
+const defaultRegionCrop: ReferenceCropRect = { type: "rect", x: 0.2, y: 0.2, width: 0.6, height: 0.6 };
 
 export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourceNodes = [], initialDetail, defaultPrompt, onReferenceSetChange, onClose }: ReferenceComposerProps) {
     const { message } = App.useApp();
@@ -65,6 +87,7 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
     const [assets, setAssets] = useState<CreativeAsset[]>([]);
     const [assetsLoading, setAssetsLoading] = useState(false);
     const [boundSources, setBoundSources] = useState<BoundReferenceSources>({});
+    const [regionSource, setRegionSource] = useState<CanvasNodeData | null>(null);
     const autoAddingKeysRef = useRef(new Set<string>());
     const sourceKeySet = useMemo(() => new Set((detail?.intents || []).map(intentSourceKey)), [detail?.intents]);
     const orderedIntents = useMemo(() => [...(detail?.intents || [])].sort((a, b) => a.sortOrder - b.sortOrder), [detail?.intents]);
@@ -155,9 +178,9 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
         }
     };
 
-    const addSource = async (source: CanvasNodeData) => {
-        if (!cloudUserId || !detail) return;
-        if (!isReferenceSourceAvailable(source, boundSources)) return;
+    const createSourceIntent = async (source: CanvasNodeData, options: SourceIntentOptions) => {
+        if (!cloudUserId || !detail) return false;
+        if (!isReferenceSourceAvailable(source, boundSources)) return false;
         setSavingId(source.id);
         try {
             const { mediaObjectId, assetId } = await ensureSourceBinding(source);
@@ -165,21 +188,49 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
             await createReferenceIntent(detail.referenceSet.id, {
                 mediaObjectId,
                 assetId,
-                role: "subject",
-                weight: 1,
+                role: options.role,
+                weight: options.weight ?? 1,
                 enabled: true,
                 sortOrder: detail.intents.length,
-                note: "",
-                metadataJson: { canvasNodeId: source.id, canvasNodeTitle: source.title },
+                note: options.note || "",
+                cropJson: options.cropJson,
+                metadataJson: {
+                    canvasNodeId: source.id,
+                    canvasNodeTitle: source.title,
+                    sourceMode: options.sourceMode,
+                    regionLabel: options.regionLabel || options.note || "",
+                },
             });
             const next = await getReferenceSet(detail.referenceSet.id);
             setDetail(next);
             onReferenceSetChange(node.id, next);
+            return true;
         } catch {
             message.error(t("reference.composer.saveFailed"));
+            return false;
         } finally {
             setSavingId(null);
         }
+    };
+
+    const addSource = async (source: CanvasNodeData) => {
+        await createSourceIntent(source, { role: "subject", sourceMode: "whole" });
+    };
+
+    const addStyleSource = async (source: CanvasNodeData) => {
+        await createSourceIntent(source, { role: "style", sourceMode: "style" });
+    };
+
+    const addRegionSource = async (source: CanvasNodeData, draft: RegionIntentDraft) => {
+        const saved = await createSourceIntent(source, {
+            role: draft.role,
+            weight: draft.weight,
+            note: draft.note,
+            cropJson: draft.cropJson,
+            sourceMode: "region",
+            regionLabel: draft.note,
+        });
+        if (saved) setRegionSource(null);
     };
 
     const ensureSourceBinding = async (source: CanvasNodeData) => {
@@ -245,6 +296,9 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
                 enabled: patch.enabled ?? intent.enabled,
                 sortOrder: patch.sortOrder ?? intent.sortOrder,
                 note: patch.note ?? intent.note,
+                cropJson: intent.cropJson,
+                analysisJson: intent.analysisJson,
+                confirmed: intent.confirmed,
                 metadataJson: intent.metadataJson,
             });
             const next = { ...detail, intents: detail.intents.map((item) => (item.id === updated.id ? updated : item)) };
@@ -252,6 +306,21 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
             onReferenceSetChange(node.id, next);
         } catch {
             message.error(t("reference.composer.saveFailed"));
+        } finally {
+            setSavingId(null);
+        }
+    };
+
+    const removeIntent = async (intent: ReferenceIntent) => {
+        if (!cloudUserId || !detail) return;
+        setSavingId(intent.id);
+        try {
+            await deleteReferenceIntent(intent.id);
+            const next = { ...detail, intents: detail.intents.filter((item) => item.id !== intent.id) };
+            setDetail(next);
+            onReferenceSetChange(node.id, next);
+        } catch {
+            message.error(t("reference.composer.deleteFailed"));
         } finally {
             setSavingId(null);
         }
@@ -312,9 +381,11 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
                                 key={source.id}
                                 node={source}
                                 boundSources={boundSources}
-                                added={isReferenceSourceAdded(source, boundSources, detail?.intents || [])}
+                                intentCount={countReferenceSourceIntents(source, boundSources, detail?.intents || [])}
                                 saving={savingId === source.id}
-                                onAdd={() => void addSource(source)}
+                                onAddWhole={() => void addSource(source)}
+                                onAddRegion={() => setRegionSource(source)}
+                                onAddStyle={() => void addStyleSource(source)}
                             />
                         ))
                     ) : (
@@ -322,6 +393,10 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
                     )}
                 </div>
             </section>
+
+            {regionSource ? (
+                <RegionSelector source={regionSource} boundSources={boundSources} saving={savingId === regionSource.id} onCancel={() => setRegionSource(null)} onSave={(draft) => void addRegionSource(regionSource, draft)} />
+            ) : null}
 
             <section className="mt-3">
                 <div className="mb-1.5 flex items-center justify-between gap-2">
@@ -344,7 +419,7 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
                 <div className="thin-scrollbar max-h-72 space-y-2 overflow-y-auto pr-1">
                     {orderedIntents.length ? (
                         orderedIntents.map((intent) => (
-                            <IntentRow key={intent.id} intent={intent} saving={savingId === intent.id} onPatch={(patch) => void patchIntent(intent, patch)} />
+                            <IntentRow key={intent.id} intent={intent} saving={savingId === intent.id} onPatch={(patch) => void patchIntent(intent, patch)} onDelete={() => void removeIntent(intent)} />
                         ))
                     ) : (
                         <EmptyLine text={t("reference.node.empty")} />
@@ -367,18 +442,166 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
     );
 }
 
-function SourceButton({ node, boundSources, added, saving, onAdd }: { node: CanvasNodeData; boundSources: BoundReferenceSources; added: boolean; saving: boolean; onAdd: () => void }) {
+function SourceButton({
+    node,
+    boundSources,
+    intentCount,
+    saving,
+    onAddWhole,
+    onAddRegion,
+    onAddStyle,
+}: {
+    node: CanvasNodeData;
+    boundSources: BoundReferenceSources;
+    intentCount: number;
+    saving: boolean;
+    onAddWhole: () => void;
+    onAddRegion: () => void;
+    onAddStyle: () => void;
+}) {
     const { t } = useI18n();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const available = isReferenceSourceAvailable(node, boundSources);
+    const menuItems: MenuProps["items"] = [
+        { key: "whole", label: t("reference.composer.sourceWhole") },
+        { key: "region", label: t("reference.composer.sourceRegion") },
+        { key: "style", label: t("reference.composer.sourceStyle") },
+    ];
+    const onMenuClick: MenuProps["onClick"] = ({ key }) => {
+        if (key === "region") {
+            onAddRegion();
+            return;
+        }
+        if (key === "style") {
+            onAddStyle();
+            return;
+        }
+        onAddWhole();
+    };
     return (
         <div className="w-24 shrink-0 rounded-lg border p-1.5" style={{ borderColor: theme.node.stroke, background: theme.node.fill }}>
             <SourcePreview node={node} boundSources={boundSources} />
             <div className="mt-1 truncate text-[11px]">{node.title}</div>
-            <Button size="small" className="mt-1 !h-6 !w-full !text-[11px]" disabled={!available || added} loading={saving} onClick={onAdd}>
-                {added ? t("reference.composer.added") : available ? t("reference.composer.add") : t("reference.composer.unavailable")}
-            </Button>
+            <Dropdown disabled={!available} trigger={["click"]} menu={{ items: menuItems, onClick: onMenuClick }} getPopupContainer={(trigger) => trigger.parentElement || document.body}>
+                <Button size="small" className="mt-1 !h-6 !w-full !text-[11px]" disabled={!available} loading={saving}>
+                    {available ? sourceActionLabel(t, intentCount) : t("reference.composer.unavailable")}
+                </Button>
+            </Dropdown>
         </div>
+    );
+}
+
+function RegionSelector({
+    source,
+    boundSources,
+    saving,
+    onCancel,
+    onSave,
+}: {
+    source: CanvasNodeData;
+    boundSources: BoundReferenceSources;
+    saving: boolean;
+    onCancel: () => void;
+    onSave: (draft: RegionIntentDraft) => void;
+}) {
+    const { t } = useI18n();
+    const theme = canvasThemes[useThemeStore((state) => state.theme)];
+    const [crop, setCrop] = useState<ReferenceCropRect>(defaultRegionCrop);
+    const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
+    const [role, setRole] = useState<ReferenceIntentRole>("element");
+    const [weight, setWeight] = useState(1);
+    const [note, setNote] = useState("");
+    const [ratio, setRatio] = useState(16 / 9);
+    const url = sourceImageUrl(source, boundSources);
+    const validCrop = normalizeReferenceCropRect(crop);
+
+    const updateCrop = (event: ReactPointerEvent<HTMLDivElement>, start = dragStart) => {
+        if (!start) return;
+        const point = pointerPosition(event);
+        const next = normalizeReferenceCropRect({
+            type: "rect",
+            x: Math.min(start.x, point.x),
+            y: Math.min(start.y, point.y),
+            width: Math.abs(point.x - start.x),
+            height: Math.abs(point.y - start.y),
+        });
+        if (next) setCrop(next);
+    };
+
+    return (
+        <section className="mt-3 rounded-xl border p-2.5" style={{ borderColor: theme.node.stroke, background: theme.node.fill }}>
+            <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                    <div className="text-xs font-medium">{t("reference.composer.regionTitle")}</div>
+                    <div className="truncate text-[11px] opacity-60">{source.title}</div>
+                </div>
+                <Button size="small" type="text" className="!h-7 !w-7 !min-w-7 !p-0" icon={<X className="size-3.5" />} onClick={onCancel} />
+            </div>
+
+            <div
+                className="relative overflow-hidden rounded-lg border bg-black/10"
+                style={{ aspectRatio: `${ratio}`, borderColor: theme.node.stroke }}
+                onPointerDown={(event) => {
+                    const point = pointerPosition(event);
+                    setDragStart(point);
+                    setCrop({ type: "rect", x: point.x, y: point.y, width: 0.01, height: 0.01 });
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                }}
+                onPointerMove={(event) => updateCrop(event)}
+                onPointerUp={(event) => {
+                    updateCrop(event);
+                    setDragStart(null);
+                    event.currentTarget.releasePointerCapture(event.pointerId);
+                }}
+            >
+                {url ? (
+                    <img
+                        src={url}
+                        alt=""
+                        draggable={false}
+                        className="absolute inset-0 h-full w-full select-none object-fill"
+                        onLoad={(event) => {
+                            const img = event.currentTarget;
+                            if (img.naturalWidth && img.naturalHeight) setRatio(img.naturalWidth / img.naturalHeight);
+                        }}
+                    />
+                ) : (
+                    <div className="grid h-full place-items-center text-xs opacity-60">{t("reference.composer.unavailable")}</div>
+                )}
+                <div
+                    className="absolute border-2 border-cyan-300 bg-cyan-300/20"
+                    style={{
+                        left: `${crop.x * 100}%`,
+                        top: `${crop.y * 100}%`,
+                        width: `${crop.width * 100}%`,
+                        height: `${crop.height * 100}%`,
+                    }}
+                />
+            </div>
+
+            <div className="mt-2 grid gap-2">
+                <Segmented
+                    block
+                    size="small"
+                    className="!w-full [&_.ant-segmented-group]:!grid [&_.ant-segmented-group]:!grid-cols-2 sm:[&_.ant-segmented-group]:!grid-cols-4 [&_.ant-segmented-item-label]:!px-1.5 [&_.ant-segmented-item-label]:!text-[11px]"
+                    value={role}
+                    options={roles.map((item) => ({ value: item, label: t(`reference.role.${item}`) }))}
+                    onChange={(value) => setRole(value as ReferenceIntentRole)}
+                />
+                <div className="grid gap-2 sm:grid-cols-[120px_minmax(0,1fr)_96px]">
+                    <Space.Compact size="small" className="w-full">
+                        <span className="inline-flex h-6 shrink-0 items-center rounded-l-md border px-2 text-xs" style={{ borderColor: theme.node.stroke, background: theme.node.fill, color: theme.node.muted }}>
+                            {t("reference.composer.weight")}
+                        </span>
+                        <InputNumber className="!w-full" size="small" min={0.1} max={2} step={0.1} value={weight} onChange={(value) => setWeight(Number(value) || 1)} />
+                    </Space.Compact>
+                    <Input size="small" value={note} placeholder={t("reference.composer.regionNotePlaceholder")} onChange={(event) => setNote(event.target.value)} />
+                    <Button size="small" type="primary" disabled={!validCrop || !url} loading={saving} onClick={() => validCrop && onSave({ cropJson: validCrop, role, weight, note })}>
+                        {t("reference.composer.saveRegion")}
+                    </Button>
+                </div>
+            </div>
+        </section>
     );
 }
 
@@ -396,7 +619,7 @@ function AssetSourceButton({ asset, added, saving, onAdd }: { asset: CreativeAss
     );
 }
 
-function IntentRow({ intent, saving, onPatch }: { intent: ReferenceIntent; saving: boolean; onPatch: (patch: IntentPatch) => void }) {
+function IntentRow({ intent, saving, onPatch, onDelete }: { intent: ReferenceIntent; saving: boolean; onPatch: (patch: IntentPatch) => void; onDelete: () => void }) {
     const { t } = useI18n();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     return (
@@ -405,7 +628,7 @@ function IntentRow({ intent, saving, onPatch }: { intent: ReferenceIntent; savin
                 <div className="w-24 shrink-0">
                     <IntentPreview intent={intent} />
                 </div>
-                <div className="min-w-[260px] flex-1">
+                <div className="min-w-[220px] flex-1">
                     <Segmented
                         block
                         size="small"
@@ -416,8 +639,9 @@ function IntentRow({ intent, saving, onPatch }: { intent: ReferenceIntent; savin
                     />
                 </div>
                 <Switch className="shrink-0" size="small" checked={intent.enabled} loading={saving} onChange={(enabled) => onPatch({ enabled })} />
+                <Button size="small" danger type="text" className="!h-7 !w-7 !min-w-7 !p-0" icon={<Trash2 className="size-3.5" />} loading={saving} onClick={onDelete} />
             </div>
-            <div className="mt-2 grid gap-2 sm:grid-cols-[64px_120px_minmax(0,1fr)]">
+            <div className="mt-2 grid gap-2 sm:grid-cols-[64px_132px_minmax(0,1fr)]">
                 <div className="flex gap-1">
                     <Button size="small" className="!h-7 !w-7 !min-w-7 !p-0" icon={<ArrowUp className="size-3.5" />} onClick={() => onPatch({ sortOrder: Math.max(0, intent.sortOrder - 1) })} />
                     <Button size="small" className="!h-7 !w-7 !min-w-7 !p-0" icon={<ArrowDown className="size-3.5" />} onClick={() => onPatch({ sortOrder: intent.sortOrder + 1 })} />
@@ -435,14 +659,32 @@ function IntentRow({ intent, saving, onPatch }: { intent: ReferenceIntent; savin
 }
 
 function SourcePreview({ node, boundSources }: { node: CanvasNodeData; boundSources: BoundReferenceSources }) {
-    const binding = getReferenceSourceBinding(node, boundSources);
-    const url = node.metadata?.content || (binding.mediaObjectId ? mediaObjectUrl(binding.mediaObjectId) : "");
+    const url = sourceImageUrl(node, boundSources);
     if (url) return <img src={url} alt="" className="h-14 w-full rounded-md object-cover" />;
     return <span className="grid h-14 w-full place-items-center rounded-md bg-black/10"><ImageIcon className="size-4" /></span>;
 }
 
 function IntentPreview({ intent }: { intent: ReferenceIntent }) {
     const url = intent.mediaObjectId ? mediaObjectUrl(intent.mediaObjectId) : "";
+    const crop = normalizeReferenceCropRect(intent.cropJson);
+    if (url && crop) {
+        return (
+            <span className="relative block h-10 w-full overflow-hidden rounded-md bg-black/10">
+                <img
+                    src={url}
+                    alt=""
+                    className="absolute max-w-none"
+                    style={{
+                        width: `${100 / crop.width}%`,
+                        height: `${100 / crop.height}%`,
+                        left: `${(-crop.x / crop.width) * 100}%`,
+                        top: `${(-crop.y / crop.height) * 100}%`,
+                        objectFit: "fill",
+                    }}
+                />
+            </span>
+        );
+    }
     if (url) return <img src={url} alt="" className="h-10 w-full rounded-md object-cover" />;
     return <span className="grid h-10 w-full place-items-center rounded-md bg-black/10"><ImageIcon className="size-4" /></span>;
 }
@@ -454,6 +696,29 @@ function EmptyLine({ text }: { text: string }) {
 
 function SectionTitle({ children }: { children: string }) {
     return <div className="mb-1.5 text-[11px] font-medium opacity-65">{children}</div>;
+}
+
+function sourceActionLabel(t: ReturnType<typeof useI18n>["t"], count: number) {
+    if (count > 1) return t("reference.composer.intentCount").replace("{count}", String(count));
+    if (count === 1) return t("reference.composer.added");
+    return t("reference.composer.add");
+}
+
+function sourceImageUrl(node: CanvasNodeData, boundSources: BoundReferenceSources) {
+    const binding = getReferenceSourceBinding(node, boundSources);
+    return node.metadata?.content || (binding.mediaObjectId ? mediaObjectUrl(binding.mediaObjectId) : "");
+}
+
+function pointerPosition(event: ReactPointerEvent<HTMLDivElement>) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return {
+        x: clamp01((event.clientX - rect.left) / Math.max(1, rect.width)),
+        y: clamp01((event.clientY - rect.top) / Math.max(1, rect.height)),
+    };
+}
+
+function clamp01(value: number) {
+    return Math.max(0, Math.min(1, value));
 }
 
 function intentSourceKey(intent: ReferenceIntent) {

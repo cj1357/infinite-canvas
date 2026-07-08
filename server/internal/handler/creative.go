@@ -64,6 +64,10 @@ func (h *CreativeHandler) UpdateReferenceIntent(c *gin.Context) {
 	writeResult(c, result, err)
 }
 
+func (h *CreativeHandler) DeleteReferenceIntent(c *gin.Context) {
+	httpx.Error(c, h.references.DeleteReferenceIntent(middleware.CurrentUser(c).ID, c.Param("id")))
+}
+
 func (h *CreativeHandler) CompileReferenceSetPreview(c *gin.Context) {
 	var req service.CompileReferenceSetPreviewInput
 	if !bindJSON(c, &req) {
