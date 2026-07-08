@@ -33,6 +33,7 @@ export const zhCN = {
     "reference.composer.sources": "画布来源",
     "reference.composer.intents": "参考意图",
     "reference.composer.add": "加入",
+    "reference.composer.added": "已加入",
     "reference.composer.unavailable": "未绑定云端媒体",
     "reference.composer.weight": "权重",
     "reference.composer.notePlaceholder": "给这个参考补一句约束",

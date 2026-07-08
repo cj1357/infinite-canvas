@@ -19,4 +19,11 @@ describe("ui warning patterns", () => {
         expect(source("src/app/(user)/canvas/components/generation-node.tsx")).not.toContain("addonBefore=");
         expect(source("src/app/(user)/canvas/components/reference-composer.tsx")).not.toContain("addonBefore=");
     });
+
+    test("reference composer intent rows avoid compressed four-column layout", () => {
+        const file = source("src/app/(user)/canvas/components/reference-composer.tsx");
+        expect(file).not.toContain("sm:grid-cols-[96px_minmax(0,1fr)_112px_56px]");
+        expect(file).toContain("data-reference-intent-row");
+        expect(file).toContain("flex-wrap");
+    });
 });

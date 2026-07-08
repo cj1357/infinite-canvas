@@ -373,7 +373,7 @@ function SourceButton({ node, boundSources, added, saving, onAdd }: { node: Canv
             <SourcePreview node={node} boundSources={boundSources} />
             <div className="mt-1 truncate text-[11px]">{node.title}</div>
             <Button size="small" className="mt-1 !h-6 !w-full !text-[11px]" disabled={!available || added} loading={saving} onClick={onAdd}>
-                {available ? t("reference.composer.add") : t("reference.composer.unavailable")}
+                {added ? t("reference.composer.added") : available ? t("reference.composer.add") : t("reference.composer.unavailable")}
             </Button>
         </div>
     );
@@ -387,7 +387,7 @@ function AssetSourceButton({ asset, added, saving, onAdd }: { asset: CreativeAss
             <img src={mediaObjectUrl(asset.mediaObjectId)} alt="" className="h-14 w-full rounded-md object-cover" />
             <div className="mt-1 truncate text-[11px]">{asset.title}</div>
             <Button size="small" className="mt-1 !h-6 !w-full !text-[11px]" disabled={added} loading={saving} onClick={onAdd}>
-                {t("reference.composer.add")}
+                {added ? t("reference.composer.added") : t("reference.composer.add")}
             </Button>
         </div>
     );
@@ -397,23 +397,34 @@ function IntentRow({ intent, saving, onPatch }: { intent: ReferenceIntent; savin
     const { t } = useI18n();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     return (
-        <div className="rounded-lg border p-2" style={{ borderColor: theme.node.stroke, background: theme.node.fill }}>
-            <div className="grid gap-2 sm:grid-cols-[96px_minmax(0,1fr)_112px_56px]">
-                <IntentPreview intent={intent} />
-                <Segmented size="small" value={intent.role} options={roles.map((role) => ({ value: role, label: t(`reference.role.${role}`) }))} onChange={(value) => onPatch({ role: value as ReferenceIntentRole })} />
+        <div data-reference-intent-row className="rounded-lg border p-2.5" style={{ borderColor: theme.node.stroke, background: theme.node.fill }}>
+            <div className="flex flex-wrap items-center gap-2">
+                <div className="w-24 shrink-0">
+                    <IntentPreview intent={intent} />
+                </div>
+                <div className="min-w-[260px] flex-1">
+                    <Segmented
+                        block
+                        size="small"
+                        className="!w-full [&_.ant-segmented-group]:!grid [&_.ant-segmented-group]:!grid-cols-2 sm:[&_.ant-segmented-group]:!grid-cols-4 [&_.ant-segmented-item-label]:!px-1.5 [&_.ant-segmented-item-label]:!text-[11px]"
+                        value={intent.role}
+                        options={roles.map((role) => ({ value: role, label: t(`reference.role.${role}`) }))}
+                        onChange={(value) => onPatch({ role: value as ReferenceIntentRole })}
+                    />
+                </div>
+                <Switch className="shrink-0" size="small" checked={intent.enabled} loading={saving} onChange={(enabled) => onPatch({ enabled })} />
+            </div>
+            <div className="mt-2 grid gap-2 sm:grid-cols-[64px_120px_minmax(0,1fr)]">
+                <div className="flex gap-1">
+                    <Button size="small" className="!h-7 !w-7 !min-w-7 !p-0" icon={<ArrowUp className="size-3.5" />} onClick={() => onPatch({ sortOrder: Math.max(0, intent.sortOrder - 1) })} />
+                    <Button size="small" className="!h-7 !w-7 !min-w-7 !p-0" icon={<ArrowDown className="size-3.5" />} onClick={() => onPatch({ sortOrder: intent.sortOrder + 1 })} />
+                </div>
                 <Space.Compact size="small" className="w-full">
                     <span className="inline-flex h-6 shrink-0 items-center rounded-l-md border px-2 text-xs" style={{ borderColor: theme.node.stroke, background: theme.node.fill, color: theme.node.muted }}>
                         {t("reference.composer.weight")}
                     </span>
                     <InputNumber className="!w-full" size="small" min={0.1} max={2} step={0.1} value={intent.weight} onChange={(value) => onPatch({ weight: Number(value) || 1 })} />
                 </Space.Compact>
-                <Switch size="small" checked={intent.enabled} loading={saving} onChange={(enabled) => onPatch({ enabled })} />
-            </div>
-            <div className="mt-2 grid gap-2 sm:grid-cols-[56px_minmax(0,1fr)]">
-                <div className="flex gap-1">
-                    <Button size="small" className="!h-7 !w-7 !min-w-7 !p-0" icon={<ArrowUp className="size-3.5" />} onClick={() => onPatch({ sortOrder: Math.max(0, intent.sortOrder - 1) })} />
-                    <Button size="small" className="!h-7 !w-7 !min-w-7 !p-0" icon={<ArrowDown className="size-3.5" />} onClick={() => onPatch({ sortOrder: intent.sortOrder + 1 })} />
-                </div>
                 <Input size="small" defaultValue={intent.note} placeholder={t("reference.composer.notePlaceholder")} onBlur={(event) => event.target.value !== intent.note && onPatch({ note: event.target.value })} />
             </div>
         </div>

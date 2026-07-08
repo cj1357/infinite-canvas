@@ -33,6 +33,7 @@ export const enUS = {
     "reference.composer.sources": "Canvas sources",
     "reference.composer.intents": "Reference intents",
     "reference.composer.add": "Add",
+    "reference.composer.added": "Added",
     "reference.composer.unavailable": "No cloud media",
     "reference.composer.weight": "Weight",
     "reference.composer.notePlaceholder": "Add a constraint for this reference",
