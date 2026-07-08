@@ -15,6 +15,7 @@ import {
     getReferenceSet,
     listCreativeAssets,
     mediaObjectUrl,
+    uploadMediaObject,
     updateReferenceIntent,
     updateReferenceSet,
     type CreativeAsset,
@@ -24,6 +25,13 @@ import {
     type ReferenceSetDetail,
 } from "@/services/api/creative";
 import type { CanvasNodeData } from "../types";
+import {
+    getReferenceSourceBinding,
+    isReferenceSourceAvailable,
+    normalizeReferencePreviewOutput,
+    referenceSourceKey,
+    type BoundReferenceSources,
+} from "./reference-composer-utils";
 
 const { TextArea } = Input;
 const roles: ReferenceIntentRole[] = ["subject", "style", "composition", "element"];
@@ -55,6 +63,7 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
     const [previewing, setPreviewing] = useState(false);
     const [assets, setAssets] = useState<CreativeAsset[]>([]);
     const [assetsLoading, setAssetsLoading] = useState(false);
+    const [boundSources, setBoundSources] = useState<BoundReferenceSources>({});
     const autoAddingKeysRef = useRef(new Set<string>());
     const sourceKeySet = useMemo(() => new Set((detail?.intents || []).map(intentSourceKey)), [detail?.intents]);
     const orderedIntents = useMemo(() => [...(detail?.intents || [])].sort((a, b) => a.sortOrder - b.sortOrder), [detail?.intents]);
@@ -147,11 +156,11 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
 
     const addSource = async (source: CanvasNodeData) => {
         if (!cloudUserId || !detail) return;
-        const mediaObjectId = source.metadata?.mediaObjectId || "";
-        const assetId = source.metadata?.assetId || "";
-        if (!mediaObjectId && !assetId) return;
+        if (!isReferenceSourceAvailable(source, boundSources)) return;
         setSavingId(source.id);
         try {
+            const { mediaObjectId, assetId } = await ensureSourceBinding(source);
+            if (!mediaObjectId && !assetId) return;
             await createReferenceIntent(detail.referenceSet.id, {
                 mediaObjectId,
                 assetId,
@@ -169,6 +178,21 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
         } finally {
             setSavingId(null);
         }
+    };
+
+    const ensureSourceBinding = async (source: CanvasNodeData) => {
+        const existing = getReferenceSourceBinding(source, boundSources);
+        if (existing.mediaObjectId || existing.assetId) return existing;
+        const content = source.metadata?.content || "";
+        if (!content) throw new Error("missing reference source content");
+        const response = await fetch(content, { credentials: "include" });
+        if (!response.ok) throw new Error(`reference source fetch failed: ${response.status}`);
+        const blob = await response.blob();
+        const mimeType = blob.type || source.metadata?.mimeType || "image/png";
+        const media = await uploadMediaObject(new File([blob], referenceSourceFileName(source, mimeType), { type: mimeType }));
+        const binding = { mediaObjectId: media.id, assetId: "" };
+        setBoundSources((prev) => ({ ...prev, [source.id]: binding }));
+        return binding;
     };
 
     const addAssetSource = async (asset: CreativeAsset) => {
@@ -197,7 +221,7 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
     useEffect(() => {
         if (!detail || !connectedSourceNodes.length) return;
         connectedSourceNodes.forEach((source) => {
-            const key = sourceKey(source);
+            const key = referenceSourceKey(source, {});
             if (sourceKeySet.has(key) || autoAddingKeysRef.current.has(key)) return;
             if (!source.metadata?.mediaObjectId && !source.metadata?.assetId) return;
             autoAddingKeysRef.current.add(key);
@@ -241,7 +265,7 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
                 model: node.metadata?.model || "default",
                 params: { count: node.metadata?.count || 1, size: node.metadata?.size },
             });
-            setPreview(next);
+            setPreview(normalizeReferencePreviewOutput(next));
         } catch {
             message.error(t("reference.composer.previewFailed"));
         } finally {
@@ -279,7 +303,20 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
             <section className="mt-3">
                 <SectionTitle>{t("reference.composer.sources")}</SectionTitle>
                 <div className="thin-scrollbar flex max-h-28 gap-2 overflow-x-auto pb-1">
-                    {sourceNodes.length ? sourceNodes.map((source) => <SourceButton key={source.id} node={source} added={sourceKeySet.has(sourceKey(source))} saving={savingId === source.id} onAdd={() => void addSource(source)} />) : <EmptyLine text={t("reference.node.empty")} />}
+                    {sourceNodes.length ? (
+                        sourceNodes.map((source) => (
+                            <SourceButton
+                                key={source.id}
+                                node={source}
+                                boundSources={boundSources}
+                                added={sourceKeySet.has(referenceSourceKey(source, boundSources))}
+                                saving={savingId === source.id}
+                                onAdd={() => void addSource(source)}
+                            />
+                        ))
+                    ) : (
+                        <EmptyLine text={t("reference.node.empty")} />
+                    )}
                 </div>
             </section>
 
@@ -327,16 +364,16 @@ export function ReferenceComposer({ node, projectId, sourceNodes, connectedSourc
     );
 }
 
-function SourceButton({ node, added, saving, onAdd }: { node: CanvasNodeData; added: boolean; saving: boolean; onAdd: () => void }) {
+function SourceButton({ node, boundSources, added, saving, onAdd }: { node: CanvasNodeData; boundSources: BoundReferenceSources; added: boolean; saving: boolean; onAdd: () => void }) {
     const { t } = useI18n();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
-    const bound = Boolean(node.metadata?.mediaObjectId || node.metadata?.assetId);
+    const available = isReferenceSourceAvailable(node, boundSources);
     return (
         <div className="w-24 shrink-0 rounded-lg border p-1.5" style={{ borderColor: theme.node.stroke, background: theme.node.fill }}>
-            <SourcePreview node={node} />
+            <SourcePreview node={node} boundSources={boundSources} />
             <div className="mt-1 truncate text-[11px]">{node.title}</div>
-            <Button size="small" className="mt-1 !h-6 !w-full !text-[11px]" disabled={!bound || added} loading={saving} onClick={onAdd}>
-                {bound ? t("reference.composer.add") : t("reference.composer.unavailable")}
+            <Button size="small" className="mt-1 !h-6 !w-full !text-[11px]" disabled={!available || added} loading={saving} onClick={onAdd}>
+                {available ? t("reference.composer.add") : t("reference.composer.unavailable")}
             </Button>
         </div>
     );
@@ -383,8 +420,9 @@ function IntentRow({ intent, saving, onPatch }: { intent: ReferenceIntent; savin
     );
 }
 
-function SourcePreview({ node }: { node: CanvasNodeData }) {
-    const url = node.metadata?.content || (node.metadata?.mediaObjectId ? mediaObjectUrl(node.metadata.mediaObjectId) : "");
+function SourcePreview({ node, boundSources }: { node: CanvasNodeData; boundSources: BoundReferenceSources }) {
+    const binding = getReferenceSourceBinding(node, boundSources);
+    const url = node.metadata?.content || (binding.mediaObjectId ? mediaObjectUrl(binding.mediaObjectId) : "");
     if (url) return <img src={url} alt="" className="h-14 w-full rounded-md object-cover" />;
     return <span className="grid h-14 w-full place-items-center rounded-md bg-black/10"><ImageIcon className="size-4" /></span>;
 }
@@ -404,14 +442,22 @@ function SectionTitle({ children }: { children: string }) {
     return <div className="mb-1.5 text-[11px] font-medium opacity-65">{children}</div>;
 }
 
-function sourceKey(node: CanvasNodeData) {
-    return node.metadata?.mediaObjectId ? `media:${node.metadata.mediaObjectId}` : node.metadata?.assetId ? `asset:${node.metadata.assetId}` : node.id;
-}
-
 function intentSourceKey(intent: ReferenceIntent) {
     return intent.mediaObjectId ? `media:${intent.mediaObjectId}` : intent.assetId ? `asset:${intent.assetId}` : intent.id;
 }
 
 function assetAdded(asset: CreativeAsset, keys: Set<string>) {
     return keys.has(`asset:${asset.id}`) || keys.has(`media:${asset.mediaObjectId}`);
+}
+
+function referenceSourceFileName(source: CanvasNodeData, mimeType: string) {
+    const base = (source.title || source.id || "reference").replace(/[\\/:*?"<>|]+/g, "-").slice(0, 40) || "reference";
+    return `${base}.${mimeExtension(mimeType)}`;
+}
+
+function mimeExtension(mimeType: string) {
+    if (mimeType.includes("jpeg")) return "jpg";
+    if (mimeType.includes("webp")) return "webp";
+    if (mimeType.includes("gif")) return "gif";
+    return "png";
 }
