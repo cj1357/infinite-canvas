@@ -247,6 +247,14 @@ func joinGatewayURL(baseURL string, path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	parsed.Path = strings.TrimRight(parsed.Path, "/") + "/" + strings.TrimLeft(path, "/")
+	basePath := strings.ToLower(parsed.Path)
+	targetPath := "/" + strings.TrimLeft(path, "/")
+	if !strings.HasSuffix(basePath, "/v1") && 
+	   !strings.HasSuffix(basePath, "/v1beta") && 
+	   !strings.HasPrefix(targetPath, "/v1/") && 
+	   !strings.HasPrefix(targetPath, "/v1beta/") {
+		targetPath = "/v1" + targetPath
+	}
+	parsed.Path = strings.TrimRight(parsed.Path, "/") + targetPath
 	return parsed.String(), nil
 }

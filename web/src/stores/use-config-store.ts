@@ -75,18 +75,18 @@ export const defaultConfig: AiConfig = {
             apiKey: "",
             apiFormat: "openai",
             models: [
-                "gpt-4o", "gpt-4o-mini", "claude-3-5-sonnet", "deepseek-chat", "deepseek-coder", "qwen-max", "glm-4",
-                "dall-e-3", "flux-schnell", "flux-dev", "flux-pro", "stable-diffusion-3", "stable-diffusion-xl",
-                "kling-v1", "cogvideo-x", "luma-dream-machine",
-                "tts-1", "tts-1-hd"
+                "google/gemini-3.5-flash", "google/gemini-3.1-flash-lite", "google/gemini-2.5-pro", "google/gemini-2.5-flash",
+                "google/gemini-3.1-flash-image", "google/gemini-3.1-flash-lite-image", "google/gemini-3-pro-image", "google/gemini-2.5-flash-image",
+                "google/veo-3.1", "google/veo-3.1-fast", "google/veo-3.1-lite",
+                "google/gemini-3.1-flash-tts-preview"
             ],
         },
     ],
-    model: "default::gpt-4o",
-    imageModel: "default::flux-schnell",
-    videoModel: "default::kling-v1",
-    textModel: "default::gpt-4o",
-    audioModel: "default::tts-1",
+    model: "default::google/gemini-3.5-flash",
+    imageModel: "default::google/gemini-3.1-flash-image",
+    videoModel: "default::google/veo-3.1",
+    textModel: "default::google/gemini-3.5-flash",
+    audioModel: "default::google/gemini-3.1-flash-tts-preview",
     audioVoice: "alloy",
     audioFormat: "mp3",
     audioSpeed: "1",
@@ -97,15 +97,21 @@ export const defaultConfig: AiConfig = {
     videoWatermark: "false",
     systemPrompt: "",
     models: [
-        "default::gpt-4o", "default::gpt-4o-mini", "default::claude-3-5-sonnet", "default::deepseek-chat", "default::deepseek-coder", "default::qwen-max", "default::glm-4",
-        "default::dall-e-3", "default::flux-schnell", "default::flux-dev", "default::flux-pro", "default::stable-diffusion-3", "default::stable-diffusion-xl",
-        "default::kling-v1", "default::cogvideo-x", "default::luma-dream-machine",
-        "default::tts-1", "default::tts-1-hd"
+        "default::google/gemini-3.5-flash", "default::google/gemini-3.1-flash-lite", "default::google/gemini-2.5-pro", "default::google/gemini-2.5-flash",
+        "default::google/gemini-3.1-flash-image", "default::google/gemini-3.1-flash-lite-image", "default::google/gemini-3-pro-image", "default::google/gemini-2.5-flash-image",
+        "default::google/veo-3.1", "default::google/veo-3.1-fast", "default::google/veo-3.1-lite",
+        "default::google/gemini-3.1-flash-tts-preview"
     ],
-    imageModels: ["default::dall-e-3", "default::flux-schnell", "default::flux-dev", "default::flux-pro", "default::stable-diffusion-3", "default::stable-diffusion-xl"],
-    videoModels: ["default::kling-v1", "default::cogvideo-x", "default::luma-dream-machine"],
-    textModels: ["default::gpt-4o", "default::gpt-4o-mini", "default::claude-3-5-sonnet", "default::deepseek-chat", "default::deepseek-coder", "default::qwen-max", "default::glm-4"],
-    audioModels: ["default::tts-1", "default::tts-1-hd"],
+    imageModels: [
+        "default::google/gemini-3.1-flash-image", "default::google/gemini-3.1-flash-lite-image", "default::google/gemini-3-pro-image", "default::google/gemini-2.5-flash-image"
+    ],
+    videoModels: [
+        "default::google/veo-3.1", "default::google/veo-3.1-fast", "default::google/veo-3.1-lite"
+    ],
+    textModels: [
+        "default::google/gemini-3.5-flash", "default::google/gemini-3.1-flash-lite", "default::google/gemini-2.5-pro", "default::google/gemini-2.5-flash"
+    ],
+    audioModels: ["default::google/gemini-3.1-flash-tts-preview"],
     quality: "auto",
     size: "1:1",
     count: "1",
@@ -210,6 +216,7 @@ export const useConfigStore = create<ConfigStore>()(
             merge: (persisted, current) => {
                 const persistedState = (persisted || {}) as Partial<ConfigStore>;
                 const persistedConfig = (persistedState.config || {}) as Partial<AiConfig>;
+                const persistedWebdav = persistedState.webdav || {};
                 const config = { 
                     ...defaultConfig, 
                     ...persistedConfig,
