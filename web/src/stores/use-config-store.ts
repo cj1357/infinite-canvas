@@ -63,25 +63,30 @@ const OPENAI_BASE_URL = "https://api.openai.com";
 const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
 
 export const defaultConfig: AiConfig = {
-    channelMode: "local",
-    baseUrl: OPENAI_BASE_URL,
+    channelMode: "remote",
+    baseUrl: "",
     apiKey: "",
     apiFormat: "openai",
     channels: [
         {
             id: "default",
-            name: "默认渠道",
-            baseUrl: OPENAI_BASE_URL,
+            name: "平台大模型网关",
+            baseUrl: "",
             apiKey: "",
             apiFormat: "openai",
-            models: ["gpt-image-2", "grok-imagine-video", "gpt-5.5", "gpt-4o-mini-tts"],
+            models: [
+                "gpt-4o", "gpt-4o-mini", "claude-3-5-sonnet", "deepseek-chat", "deepseek-coder", "qwen-max", "glm-4",
+                "dall-e-3", "flux-schnell", "flux-dev", "flux-pro", "stable-diffusion-3", "stable-diffusion-xl",
+                "kling-v1", "cogvideo-x", "luma-dream-machine",
+                "tts-1", "tts-1-hd"
+            ],
         },
     ],
-    model: "default::gpt-image-2",
-    imageModel: "default::gpt-image-2",
-    videoModel: "default::grok-imagine-video",
-    textModel: "default::gpt-5.5",
-    audioModel: "default::gpt-4o-mini-tts",
+    model: "default::gpt-4o",
+    imageModel: "default::flux-schnell",
+    videoModel: "default::kling-v1",
+    textModel: "default::gpt-4o",
+    audioModel: "default::tts-1",
     audioVoice: "alloy",
     audioFormat: "mp3",
     audioSpeed: "1",
@@ -91,11 +96,16 @@ export const defaultConfig: AiConfig = {
     videoGenerateAudio: "true",
     videoWatermark: "false",
     systemPrompt: "",
-    models: ["default::gpt-image-2", "default::grok-imagine-video", "default::gpt-5.5", "default::gpt-4o-mini-tts"],
-    imageModels: ["default::gpt-image-2"],
-    videoModels: ["default::grok-imagine-video"],
-    textModels: ["default::gpt-5.5"],
-    audioModels: ["default::gpt-4o-mini-tts"],
+    models: [
+        "default::gpt-4o", "default::gpt-4o-mini", "default::claude-3-5-sonnet", "default::deepseek-chat", "default::deepseek-coder", "default::qwen-max", "default::glm-4",
+        "default::dall-e-3", "default::flux-schnell", "default::flux-dev", "default::flux-pro", "default::stable-diffusion-3", "default::stable-diffusion-xl",
+        "default::kling-v1", "default::cogvideo-x", "default::luma-dream-machine",
+        "default::tts-1", "default::tts-1-hd"
+    ],
+    imageModels: ["default::dall-e-3", "default::flux-schnell", "default::flux-dev", "default::flux-pro", "default::stable-diffusion-3", "default::stable-diffusion-xl"],
+    videoModels: ["default::kling-v1", "default::cogvideo-x", "default::luma-dream-machine"],
+    textModels: ["default::gpt-4o", "default::gpt-4o-mini", "default::claude-3-5-sonnet", "default::deepseek-chat", "default::deepseek-coder", "default::qwen-max", "default::glm-4"],
+    audioModels: ["default::tts-1", "default::tts-1-hd"],
     quality: "auto",
     size: "1:1",
     count: "1",
@@ -165,8 +175,7 @@ function modelListKey(capability: ModelCapability) {
 }
 
 function isAiConfigReady(config: AiConfig, model: string) {
-    const channel = resolveModelChannel(config, model);
-    return Boolean(model.trim() && channel.baseUrl.trim() && channel.apiKey.trim());
+    return Boolean(model.trim());
 }
 
 export const useConfigStore = create<ConfigStore>()(
@@ -201,24 +210,31 @@ export const useConfigStore = create<ConfigStore>()(
             merge: (persisted, current) => {
                 const persistedState = (persisted || {}) as Partial<ConfigStore>;
                 const persistedConfig = (persistedState.config || {}) as Partial<AiConfig>;
-                const persistedWebdav = (persistedState.webdav || {}) as Partial<WebdavSyncConfig>;
-                const config = { ...defaultConfig, ...persistedConfig };
-                if (!Array.isArray(persistedConfig.channels)) config.channels = [];
-                const channels = normalizeChannels(config);
-                const models = modelOptionsFromChannels(channels);
+                const config = { 
+                    ...defaultConfig, 
+                    ...persistedConfig,
+                    channels: defaultConfig.channels,
+                    models: defaultConfig.models,
+                    imageModels: defaultConfig.imageModels,
+                    videoModels: defaultConfig.videoModels,
+                    textModels: defaultConfig.textModels,
+                    audioModels: defaultConfig.audioModels,
+                    imageModel: defaultConfig.imageModel,
+                    videoModel: defaultConfig.videoModel,
+                    textModel: defaultConfig.textModel,
+                    audioModel: defaultConfig.audioModel
+                };
+                const channels = defaultConfig.channels;
+                const models = defaultConfig.models;
                 return {
                     ...current,
                     webdav: { ...defaultWebdavSyncConfig, ...persistedWebdav },
                     config: {
                         ...config,
-                        channelMode: "local",
-                        apiFormat: normalizeApiFormat(config.apiFormat),
+                        channelMode: "remote",
+                        apiFormat: "openai",
                         channels,
                         models,
-                        imageModel: normalizeModelOptionValue(config.imageModel || config.model, channels),
-                        videoModel: normalizeModelOptionValue(config.videoModel || "grok-imagine-video", channels),
-                        textModel: normalizeModelOptionValue(config.textModel || config.model, channels),
-                        audioModel: normalizeModelOptionValue(config.audioModel || defaultConfig.audioModel, channels),
                         audioVoice: config.audioVoice || defaultConfig.audioVoice,
                         audioFormat: config.audioFormat || defaultConfig.audioFormat,
                         audioSpeed: config.audioSpeed || defaultConfig.audioSpeed,
@@ -228,10 +244,6 @@ export const useConfigStore = create<ConfigStore>()(
                         videoGenerateAudio: config.videoGenerateAudio || "true",
                         videoWatermark: config.videoWatermark || "false",
                         canvasImageCount: config.canvasImageCount || "3",
-                        imageModels: Array.isArray(persistedConfig.imageModels) ? normalizeModelList(config.imageModels, channels) : filterModelsByCapability(models, "image"),
-                        videoModels: Array.isArray(persistedConfig.videoModels) ? normalizeModelList(config.videoModels, channels) : filterModelsByCapability(models, "video"),
-                        textModels: Array.isArray(persistedConfig.textModels) ? normalizeModelList(config.textModels, channels) : filterModelsByCapability(models, "text"),
-                        audioModels: Array.isArray(persistedConfig.audioModels) ? normalizeModelList(config.audioModels, channels) : filterModelsByCapability(models, "audio"),
                     },
                 };
             },

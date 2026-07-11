@@ -54,7 +54,7 @@ export type EstimateResponse = {
 };
 
 export function isServerAIEnabled() {
-    return Boolean(useUserStore.getState().user);
+    return true;
 }
 
 export function serverAIUrl(path: string) {
