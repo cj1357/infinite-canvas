@@ -7,6 +7,8 @@ import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAssetStore, type Asset } from "@/stores/use-asset-store";
 import { buildInsertAssetPayload, type InsertAssetPayload } from "./asset-picker-payload";
+import { isServerAIEnabled } from "@/services/api/server";
+import { listCreativeAssets, mediaObjectUrl } from "@/services/api/creative";
 
 type Props = {
     open: boolean;
@@ -55,10 +57,50 @@ function PickerCard({ title, kind, cover, onClick }: { title: string; kind: stri
 }
 
 function MyAssetsTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => void }) {
-    const assets = useAssetStore((state) => state.assets);
+    const localAssets = useAssetStore((state) => state.assets);
+    const [cloudAssets, setCloudAssets] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
     const [keyword, setKeyword] = useState("");
     const [kindFilter, setKindFilter] = useState("all");
     const [page, setPage] = useState(1);
+
+    useEffect(() => {
+        if (!isServerAIEnabled()) return;
+        setLoading(true);
+        listCreativeAssets()
+            .then((res) => {
+                setCloudAssets(res.items || []);
+            })
+            .catch((err) => console.error("加载云端素材失败:", err))
+            .finally(() => setLoading(false));
+    }, []);
+
+    const assets = useMemo(() => {
+        const normalizedCloud = cloudAssets.map((c) => ({
+            id: c.id,
+            kind: c.kind as "text" | "image" | "video",
+            title: c.title,
+            coverUrl: c.mediaObjectId ? mediaObjectUrl(c.mediaObjectId) : "",
+            tags: c.tags || [],
+            note: c.description || "",
+            createdAt: c.createdAt,
+            updatedAt: c.updatedAt,
+            data: {
+                content: c.description || "",
+                dataUrl: c.mediaObjectId ? mediaObjectUrl(c.mediaObjectId) : "",
+                url: c.mediaObjectId ? mediaObjectUrl(c.mediaObjectId) : "",
+                mimeType: c.kind === "image" ? "image/png" : "video/mp4",
+                width: 1024,
+                height: 1024,
+                bytes: 0
+            }
+        }));
+
+        const cloudIds = new Set(normalizedCloud.map((a) => a.id));
+        const filteredLocal = localAssets.filter((a) => !cloudIds.has(a.id));
+
+        return [...normalizedCloud, ...filteredLocal];
+    }, [localAssets, cloudAssets]);
 
     const filtered = useMemo(() => {
         const query = keyword.trim().toLowerCase();
@@ -75,8 +117,8 @@ function MyAssetsTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => 
         setPage((v) => Math.min(v, maxPage));
     }, [filtered.length]);
 
-    const handleInsert = (asset: Asset) => {
-        onInsert(buildInsertAssetPayload(asset));
+    const handleInsert = (asset: any) => {
+        onInsert(buildInsertAssetPayload(asset as Asset));
     };
 
     return (

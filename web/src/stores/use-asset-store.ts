@@ -7,6 +7,8 @@ import { nanoid } from "nanoid";
 import { localForageStorage } from "@/lib/localforage-storage";
 import { cleanupUnusedImages, resolveImageUrl, uploadImage } from "@/services/image-storage";
 import { cleanupUnusedMedia, resolveMediaUrl } from "@/services/file-storage";
+import { isServerAIEnabled } from "@/services/api/server";
+import { createCreativeAsset, updateCreativeAsset, deleteCreativeAsset, uploadMediaObject } from "@/services/api/creative";
 
 export type AssetKind = "text" | "image" | "video";
 export type TextAsset = AssetBase<"text"> & { data: { content: string } };
@@ -74,18 +76,76 @@ export const useAssetStore = create<AssetStore>()(
                 const now = new Date().toISOString();
                 const id = nanoid();
                 set((state) => ({ assets: [{ ...asset, id, createdAt: now, updatedAt: now } as Asset, ...state.assets] }));
+
+                if (isServerAIEnabled()) {
+                    void (async () => {
+                        try {
+                            let mediaObjectId = "";
+                            if (asset.kind === "image" && (asset as ImageAsset).data?.dataUrl) {
+                                const imgAsset = asset as ImageAsset;
+                                const response = await fetch(imgAsset.data.dataUrl);
+                                const blob = await response.blob();
+                                const file = new File([blob], imgAsset.title || "image.png", { type: blob.type || imgAsset.data.mimeType || "image/png" });
+                                const media = await uploadMediaObject(file);
+                                mediaObjectId = media.id;
+                            } else if (asset.kind === "video" && (asset as VideoAsset).data?.url) {
+                                const vidAsset = asset as VideoAsset;
+                                const response = await fetch(vidAsset.data.url);
+                                const blob = await response.blob();
+                                const file = new File([blob], vidAsset.title || "video.mp4", { type: blob.type || vidAsset.data.mimeType || "video/mp4" });
+                                const media = await uploadMediaObject(file);
+                                mediaObjectId = media.id;
+                            }
+                            await createCreativeAsset({
+                                id,
+                                mediaObjectId,
+                                kind: asset.kind,
+                                title: asset.title,
+                                description: asset.note || "",
+                                tagsJson: asset.tags || [],
+                                metadataJson: asset.metadata || {},
+                            });
+                        } catch (err) {
+                              console.error("同步创建云端资产失败:", err);
+                        }
+                    })();
+                }
                 return id;
             },
-            updateAsset: (id, patch) =>
+            updateAsset: (id, patch) => {
                 set((state) => ({
                     assets: state.assets.map((asset) => (asset.id === id ? ({ ...asset, ...patch, updatedAt: new Date().toISOString() } as Asset) : asset)),
-                })),
-            removeAsset: (id) =>
+                }));
+
+                if (isServerAIEnabled()) {
+                    void (async () => {
+                        try {
+                            const input: Record<string, any> = {};
+                            if (patch.title !== undefined) input.title = patch.title;
+                            if (patch.tags !== undefined) input.tagsJson = patch.tags;
+                            if (patch.note !== undefined) input.description = patch.note;
+                            if (patch.metadata !== undefined) input.metadataJson = patch.metadata;
+
+                            await updateCreativeAsset(id, input);
+                        } catch (err) {
+                            console.error("同步更新云端资产失败:", err);
+                        }
+                    })();
+                }
+            },
+            removeAsset: (id) => {
                 set((state) => {
                     const assets = state.assets.filter((asset) => asset.id !== id);
                     get().cleanupImages({ assets });
                     return { assets };
-                }),
+                });
+
+                if (isServerAIEnabled()) {
+                    void deleteCreativeAsset(id).catch((err) => {
+                        console.error("同步删除云端资产失败:", err);
+                    });
+                }
+            },
             replaceAssets: (assets) => set({ assets }),
             cleanupImages: (extra) => {
                 window.setTimeout(async () => {
