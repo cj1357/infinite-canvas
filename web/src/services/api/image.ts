@@ -3,6 +3,7 @@ import axios from "axios";
 import { buildApiUrl, resolveModelRequestConfig, type AiConfig, type ModelChannel } from "@/stores/use-config-store";
 import { nanoid } from "nanoid";
 import { dataUrlToFile } from "@/lib/image-utils";
+import { resolveGoogleImageRequestOptions } from "@/lib/image-generation-options";
 import { buildImageReferencePromptText } from "@/lib/image-reference-prompt";
 import { isServerAIEnabled, serverAIHeaders, serverAIUrl } from "@/services/api/server";
 import { imageToDataUrl } from "@/services/image-storage";
@@ -621,8 +622,9 @@ export async function requestGeneration(config: AiConfig, prompt: string, option
             throw new Error(readAxiosError(error, "请求失败"));
         }
     }
-    const quality = normalizeQuality(config.quality);
-    const requestSize = resolveRequestSize(quality, config.size);
+    const googleOptions = resolveGoogleImageRequestOptions(requestConfig.model, config.quality, config.size);
+    const quality = googleOptions ? undefined : normalizeQuality(config.quality);
+    const requestSize = googleOptions ? undefined : resolveRequestSize(quality, config.size);
     try {
         const response = await axios.post<ImageApiResponse>(
             aiApiUrl(requestConfig, "/images/generations"),
@@ -630,6 +632,7 @@ export async function requestGeneration(config: AiConfig, prompt: string, option
                 model: requestConfig.model,
                 prompt: withSystemPrompt(requestConfig, prompt),
                 n,
+                ...(googleOptions || {}),
                 ...(quality ? { quality } : {}),
                 ...(requestSize ? { size: requestSize } : {}),
                 response_format: "b64_json",
@@ -659,14 +662,17 @@ export async function requestEdit(config: AiConfig, prompt: string, references: 
             throw new Error(readAxiosError(error, "请求失败"));
         }
     }
-    const quality = normalizeQuality(config.quality);
-    const requestSize = resolveRequestSize(quality, config.size);
+    const googleOptions = resolveGoogleImageRequestOptions(requestConfig.model, config.quality, config.size);
+    const quality = googleOptions ? undefined : normalizeQuality(config.quality);
+    const requestSize = googleOptions ? undefined : resolveRequestSize(quality, config.size);
     const formData = new FormData();
     formData.set("model", requestConfig.model);
     formData.set("prompt", withSystemPrompt(requestConfig, requestPrompt));
     formData.set("n", String(n));
     formData.set("response_format", "b64_json");
     formData.set("output_format", IMAGE_OUTPUT_FORMAT);
+    if (googleOptions?.resolution) formData.set("resolution", googleOptions.resolution);
+    if (googleOptions?.aspect_ratio) formData.set("aspect_ratio", googleOptions.aspect_ratio);
     if (quality) {
         formData.set("quality", quality);
     }

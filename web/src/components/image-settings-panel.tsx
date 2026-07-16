@@ -4,6 +4,7 @@ import { type ReactNode, useState } from "react";
 import { ConfigProvider, Switch } from "antd";
 
 import { type CanvasTheme } from "@/lib/canvas-theme";
+import { getGoogleImageResolutionOptions, resolveGoogleImageAspectRatio, resolveGoogleImageRequestOptions } from "@/lib/image-generation-options";
 import type { AiConfig } from "@/stores/use-config-store";
 
 const qualityOptions = [
@@ -42,10 +43,17 @@ type ImageSettingsPanelProps = {
 
 export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = true, className = "w-[320px] space-y-4 rounded-2xl px-1 py-0.5", maxCount = 15, quickCount = 10 }: ImageSettingsPanelProps) {
     const [snapDimensionToStep, setSnapDimensionToStep] = useState(true);
-    const quality = config.quality || "auto";
+    const googleResolutions = getGoogleImageResolutionOptions(config.imageModel || config.model);
+    const googleOptions = resolveGoogleImageRequestOptions(config.imageModel || config.model, config.quality, config.size);
+    const isGoogleImage = googleResolutions !== null;
+    const visibleQualityOptions = isGoogleImage ? (googleResolutions || []).map((value) => ({ value, label: value })) : qualityOptions;
+    const visibleAspectOptions = isGoogleImage ? aspectOptions.filter((item) => !item.size) : aspectOptions;
+    const quality = googleOptions?.resolution || config.quality || "auto";
     const count = Math.max(1, Math.min(maxCount, Math.floor(Math.abs(Number(config.count)) || 1)));
     const activeSize = config.size || "auto";
-    const selectedAspect = aspectOptions.find((item) => (item.size || item.value) === activeSize || item.value === activeSize);
+    const selectedAspect = isGoogleImage
+        ? visibleAspectOptions.find((item) => item.value === (resolveGoogleImageAspectRatio(activeSize) || "auto"))
+        : visibleAspectOptions.find((item) => (item.size || item.value) === activeSize || item.value === activeSize);
     const dimensions = readSizeDimensions(activeSize, selectedAspect || aspectOptions[0]);
     const selectAspect = (value: string) => {
         const option = aspectOptions.find((item) => item.value === value);
@@ -70,17 +78,17 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
                 }}
             >
                 {showTitle ? <div className="text-lg font-semibold">图像设置</div> : null}
-                <div className="space-y-2.5">
-                    <SettingTitle color={theme.node.muted}>质量</SettingTitle>
+                {visibleQualityOptions.length ? <div className="space-y-2.5">
+                    <SettingTitle color={theme.node.muted}>{isGoogleImage ? "分辨率" : "质量"}</SettingTitle>
                     <div className="grid grid-cols-4 gap-2.5">
-                        {qualityOptions.map((item) => (
+                        {visibleQualityOptions.map((item) => (
                             <OptionPill key={item.value} selected={quality === item.value} theme={theme} onClick={() => onConfigChange("quality", item.value)}>
                                 {item.label}
                             </OptionPill>
                         ))}
                     </div>
-                </div>
-                <div className="space-y-2.5">
+                </div> : null}
+                {!isGoogleImage ? <div className="space-y-2.5">
                     <div className="flex items-center justify-between gap-3">
                         <SettingTitle color={theme.node.muted}>尺寸</SettingTitle>
                         <div className="flex items-center gap-2">
@@ -97,11 +105,11 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
                         <span className="text-lg opacity-45">↔</span>
                         <DimensionInput prefix="H" value={dimensions.height} disabled={activeSize === "auto"} theme={theme} alignToStep={snapDimensionToStep} onChange={(value) => updateDimension("height", value)} />
                     </div>
-                </div>
+                </div> : null}
                 <div className="space-y-2.5">
                     <SettingTitle color={theme.node.muted}>宽高比</SettingTitle>
                     <div className="grid grid-cols-4 gap-2.5">
-                        {aspectOptions.map((item) => (
+                        {visibleAspectOptions.map((item) => (
                             <button
                                 key={item.value}
                                 type="button"

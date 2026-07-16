@@ -47,6 +47,17 @@ DEFAULT_LOCALE=zh-CN
 
 如果 NewAPI 和本应用在同一台 VPS 或同一个 Docker 网络，优先填写 `MODEL_GATEWAY_INTERNAL_URL`，让 Go 后端走内网访问 NewAPI。NewAPI 对外通过 OpenResty、Cloudflare 小黄云和你的域名暴露，是给浏览器或管理访问使用；应用后端调用模型不依赖这个公网域名。`MODEL_GATEWAY_BASE_URL` 可以保留外部域名作为展示或 fallback，实际代理请求会优先使用 internal URL。
 
+## NewAPI 的 OpenRouter 视频渠道
+
+NewAPI 的 OpenRouter 类型渠道可继续承载文本和图片，但当前不能处理 `/v1/videos` 异步任务。视频模型需要单独创建一个渠道：
+
+- 类型选择 `OpenAI`，API 地址填写 `https://openrouter.ai/api`，不要在末尾添加 `/v1`。
+- 密钥填写同一个 OpenRouter API Key，模型只添加 `google/veo-3.1`、`google/veo-3.1-fast`、`google/veo-3.1-lite` 等实际启用的视频模型。
+- 从原 OpenRouter 类型渠道移除这些视频模型，避免 NewAPI 把视频请求再次路由到不支持任务接口的渠道。
+- 图片和文本模型仍留在原 OpenRouter 类型渠道，应用侧继续只使用同一个 NewAPI 平台 Token。
+
+NewAPI 当前不会把渠道“参数覆盖”可靠应用到 `/v1/videos` 任务请求，因此应用会在 `google/veo-*` 视频请求体中直接添加 `provider.only = ["google-vertex"]`，确保 OpenRouter 使用同一 Workspace 下配置的 Vertex BYOK。
+
 如果要使用 `1Panel-postgresql-NamW` 这种容器连接地址，先确认 PostgreSQL 所在网络：
 
 ```bash

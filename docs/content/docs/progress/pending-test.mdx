@@ -36,5 +36,7 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 参考图组编排稳定性：编译预览的提示词和预览结果会由画布页保存草稿，拖动节点或面板短暂重绘后不应再丢失预览内容。
 - SaaS 拦截与网关收网：彻底移除了前端直连和WebDAV连接方式，AI 请求强制走后端网关，加强了SaaS登录拦截体验。
 - 模型专属矩阵（Google Vertex AI）：模型矩阵全面适配 Google 生态。文本预设为 Gemini 3.5 Flash；生图预设为 Nano Banana 2 (Gemini 3.1 Flash Image) 系列；视频预设为 Google Veo 3.1（包含 Fast/Lite 版本）；音频预设为 Gemini 3.1 Flash TTS。
+- Google 图片规格适配：生图和图生图请求会把像素尺寸转换为模型支持的 `resolution` 与 `aspect_ratio`，不再向 Gemini 图片模型发送 `1280x720` 等无效裸尺寸；设置面板只展示当前模型支持的分辨率和标准宽高比，需人工验证 Lite 1K、Flash 2K/4K 与参考图编辑。
 - 网关路由智能兼容：在后端 `joinGatewayURL` 中实现智能校验，自动补齐缺失 of /v1 或 /v1beta 路径，解决生图代理返回 HTML 网页导致的白屏 Bug。
 - 个人创作 SaaS 前端：修复了生图工作台及画布点击“加入我的素材”无法同步至云端数据库的 Bug，通过 Zustand Action 自动同步镜像上传，并在“选择素材”弹窗中实现本地与云端素材归一化合并与去重。
+- 本地管理员初始化：本地 Compose 会把 `BOOTSTRAP_ADMIN_EMAIL` 注入后端；已将现有 `orange` 账号提升为管理员并清理自动化测试管理员，需确认重新进入页面后可见“后台管理”入口。

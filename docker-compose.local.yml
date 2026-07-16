@@ -27,6 +27,7 @@ services:
       DATABASE_URL: postgres://infinite_canvas:infinite_canvas@postgres:5432/infinite_canvas?sslmode=disable
       SESSION_COOKIE_NAME: ic_session
       SESSION_COOKIE_SECURE: "false"
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
       MODEL_GATEWAY_PROVIDER: ${MODEL_GATEWAY_PROVIDER:-newapi}
       MODEL_GATEWAY_BASE_URL: ${MODEL_GATEWAY_BASE_URL:-}
       MODEL_GATEWAY_INTERNAL_URL: ${MODEL_GATEWAY_INTERNAL_URL:-}
