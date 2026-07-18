@@ -109,9 +109,9 @@ func New(repo *repository.Repository, store storage.Store, cfg config.Config) *g
 	protected.POST("/ai/images/edits", aiHandler.ProxyPost("image_edit", "/images/edits"))
 	protected.POST("/ai/responses", aiHandler.ProxyPost("text_response", "/responses"))
 	protected.POST("/ai/audio/speech", aiHandler.ProxyPost("audio_speech", "/audio/speech"))
-	protected.POST("/ai/videos", aiHandler.ProxyPost("video", "/videos"))
-	protected.GET("/ai/videos/:id/content", aiHandler.ProxyGetWithSuffix("/videos", "/content"))
-	protected.GET("/ai/videos/:id", aiHandler.ProxyGet("/videos"))
+	// protected.POST("/ai/videos", aiHandler.ProxyPost("video", "/videos"))
+	// protected.GET("/ai/videos/:id/content", aiHandler.ProxyGetWithSuffix("/videos", "/content"))
+	// protected.GET("/ai/videos/:id", aiHandler.ProxyGet("/videos"))
 
 	admin := api.Group("/admin")
 	admin.Use(authMiddleware.Required(), authMiddleware.AdminRequired())

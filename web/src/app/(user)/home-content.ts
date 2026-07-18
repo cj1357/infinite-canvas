@@ -30,12 +30,6 @@ export const homeQuickActions: HomeQuickAction[] = [
         tone: "media",
     },
     {
-        label: "视频创作台",
-        description: "把镜头想法整理成可复用的视频生成流程。",
-        href: "/video",
-        tone: "canvas",
-    },
-    {
         label: "提示词库",
         description: "查找、复制和沉淀稳定出结果的提示词。",
         href: "/prompts",

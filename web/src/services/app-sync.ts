@@ -12,7 +12,7 @@ import type { CanvasProject } from "@/app/(user)/canvas/stores/use-canvas-store"
 import { useCanvasStore } from "@/app/(user)/canvas/stores/use-canvas-store";
 
 type StoredLog = Record<string, unknown> & { id?: string };
-export type AppSyncDomainKey = "canvas" | "assets" | "image-workbench" | "video-workbench";
+export type AppSyncDomainKey = "canvas" | "assets" | "image-workbench";
 type DomainKey = AppSyncDomainKey;
 type CanvasDomainData = { projects: CanvasProject[] };
 type AssetDomainData = { assets: Asset[] };
@@ -86,7 +86,7 @@ export async function syncAppDataToWebdav(config: WebdavSyncConfig, onProgress?:
     emitProgress(onProgress, { stage: "等待本地数据加载" });
     await Promise.all([waitForHydration(useCanvasStore), waitForHydration(useAssetStore)]);
 
-    const [canvas, assets, imageLogs, videoLogs] = await Promise.all([
+    const [canvas, assets, imageLogs] = await Promise.all([
         syncDomain<CanvasDomainData>(config, onProgress, {
             key: "canvas",
             label: "画布",
@@ -111,27 +111,18 @@ export async function syncAppDataToWebdav(config: WebdavSyncConfig, onProgress?:
             mergeData: (local, remote) => ({ logs: mergeById(local.logs, remote.logs, "createdAt") }),
             applyData: async (data) => replaceStoredLogs(imageLogStore, data.logs),
         }),
-        syncDomain<LogDomainData>(config, onProgress, {
-            key: "video-workbench",
-            label: "视频创作台",
-            emptyData: { logs: [] },
-            localData: async () => ({ logs: await readStoredLogs(videoLogStore) }),
-            mergeData: (local, remote) => ({ logs: mergeById(local.logs, remote.logs, "createdAt") }),
-            applyData: async (data) => replaceStoredLogs(videoLogStore, data.logs),
-        }),
     ]);
 
     const result = {
         syncedAt: new Date().toISOString(),
-        mergedRemote: [canvas, assets, imageLogs, videoLogs].some((item) => item.mergedRemote),
+        mergedRemote: [canvas, assets, imageLogs].some((item) => item.mergedRemote),
         projects: canvas.data.projects.length,
         assets: assets.data.assets.length,
         imageLogs: imageLogs.data.logs.length,
-        videoLogs: videoLogs.data.logs.length,
-        files: canvas.files + assets.files + imageLogs.files + videoLogs.files,
-        manifestBytes: canvas.manifestBytes + assets.manifestBytes + imageLogs.manifestBytes + videoLogs.manifestBytes,
-        uploadedFiles: canvas.uploadedFiles + assets.uploadedFiles + imageLogs.uploadedFiles + videoLogs.uploadedFiles,
-        uploadedBytes: canvas.uploadedBytes + assets.uploadedBytes + imageLogs.uploadedBytes + videoLogs.uploadedBytes,
+        files: canvas.files + assets.files + imageLogs.files,
+        manifestBytes: canvas.manifestBytes + assets.manifestBytes + imageLogs.manifestBytes,
+        uploadedFiles: canvas.uploadedFiles + assets.uploadedFiles + imageLogs.uploadedFiles,
+        uploadedBytes: canvas.uploadedBytes + assets.uploadedBytes + imageLogs.uploadedBytes,
     };
     emitProgress(onProgress, { stage: "同步完成", status: "success" });
     return result;

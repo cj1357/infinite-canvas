@@ -66,24 +66,6 @@ export function CanvasConfigNodePanel({ node, isRunning, inputSummary, onConfigC
                                     </span>
                                 ),
                             },
-                            {
-                                value: "video",
-                                label: (
-                                    <span className="inline-flex items-center gap-1">
-                                        <Video className="size-3.5" />
-                                        视频
-                                    </span>
-                                ),
-                            },
-                            {
-                                value: "audio",
-                                label: (
-                                    <span className="inline-flex items-center gap-1">
-                                        <Music2 className="size-3.5" />
-                                        音频
-                                    </span>
-                                ),
-                            },
                         ]}
                     />
                 </div>
@@ -92,19 +74,16 @@ export function CanvasConfigNodePanel({ node, isRunning, inputSummary, onConfigC
             <div className="mb-2 flex flex-wrap gap-1.5">
                 <InputChip label="提示词" value={`${inputSummary.textCount} 个`} style={chipStyle} />
                 <InputChip label="参考图" value={`${inputSummary.imageCount} 张`} style={chipStyle} />
-                <InputChip label="参考视频" value={`${inputSummary.videoCount} 个`} style={chipStyle} />
-                <InputChip label="参考音频" value={`${inputSummary.audioCount} 个`} style={chipStyle} />
+
                 <button type="button" className="inline-flex h-7 cursor-pointer items-center gap-1 rounded-md border px-2 text-[11px]" style={chipStyle} onMouseDown={(event) => event.stopPropagation()} onClick={onComposerToggle}>
                     <Settings2 className="size-3.5" />
                     组装提示词
                 </button>
             </div>
 
-            <div className={`mb-2 grid min-w-0 cursor-default items-center gap-2 ${mode === "image" || mode === "video" || mode === "audio" ? "grid-cols-[minmax(0,1fr)_148px]" : "grid-cols-1"}`} onMouseDown={(event) => event.stopPropagation()}>
+            <div className={`mb-2 grid min-w-0 cursor-default items-center gap-2 ${mode === "image" ? "grid-cols-[minmax(0,1fr)_148px]" : "grid-cols-1"}`} onMouseDown={(event) => event.stopPropagation()}>
                 <ModelPicker className="canvas-compact-control h-10" config={config} value={config.model} onChange={(model) => onConfigChange(node.id, { model })} capability={mode} onMissingConfig={() => openConfigDialog(true)} fullWidth />
-                {mode === "video" ? (
-                    <CanvasVideoSettingsPopover config={config} placement="topRight" buttonClassName="canvas-compact-control !h-10 !w-full !justify-start !rounded-lg !px-2" onConfigChange={(key, value) => onConfigChange(node.id, videoConfigPatch(key, value))} />
-                ) : mode === "image" ? (
+                {mode === "image" ? (
                     <CanvasImageSettingsPopover config={config} placement="topRight" autoAdjustOverflow={false} buttonClassName="canvas-compact-control !h-10 !w-full !justify-start !rounded-lg !px-2" onConfigChange={(key, value) => onConfigChange(node.id, key === "count" ? { count: Number(value) || 1 } : { [key]: value })} />
                 ) : mode === "audio" ? (
                     <CanvasAudioSettingsPopover config={config} placement="topRight" buttonClassName="canvas-compact-control !h-10 !w-full !justify-start !rounded-lg !px-2" onConfigChange={(key, value) => onConfigChange(node.id, audioConfigPatch(key, value))} />

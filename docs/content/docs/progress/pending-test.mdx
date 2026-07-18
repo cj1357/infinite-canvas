@@ -35,12 +35,48 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 参考图组局部意图：同一张画布来源图可继续添加整图参考、构图参考、局部框选参考和风格参考；局部框选会保存 `cropJson`，意图行显示裁剪缩略图，支持删除单条参考意图，编译预览文本会输出 crop 坐标。
 - 参考图组编排稳定性：编译预览的提示词和预览结果会由画布页保存草稿，拖动节点或面板短暂重绘后不应再丢失预览内容。
 - SaaS 拦截与网关收网：彻底移除了前端直连和WebDAV连接方式，AI 请求强制走后端网关，加强了SaaS登录拦截体验。
+---
+title: 待测试
+description: 当前版本已实现但仍需人工验证的变更项
+---
+
+# 待测试
+
+- Codex App 插件文档：新增插件安装教程，区分 AI 自动安装、手动安装和本仓库开发调试安装；同步优化插件 README 与技能说明。
+- 配置与用户偏好：每个模型渠道新增 OpenAI / Gemini 调用格式选择，默认 OpenAI，切换默认格式时同步更新默认 Base URL；渠道 Tab 增加紧凑醒目的提醒，说明模型是否可选需要到“模型”Tab 选择。
+- Gemini 调用格式：支持拉取 Gemini 模型列表，并用于文本问答、在线 Agent 工具调用、基础生图和图生图请求。
+- 音频和视频生成：选择 Gemini 调用格式时先给出不支持提示，仍需使用 OpenAI 兼容渠道。
+- 多账号 SaaS 后端：新增 Go + Gin + GORM 后端，支持账号 session、云端数据接口、媒体上传、NewAPI 代理、三层额度、后台手动开通和支付预留表。
+- 个人创作 SaaS 后端：新增媒体对象、创作素材、参考图集合、参考图意图、生成运行、生成输出、生成任务、模型能力和 Prompt 模板领域表，并同步数据库文档。
+- 个人创作 SaaS 后端：新增创作领域仓储方法，支持媒体、素材、参考图集合、参考图意图、生成运行、生成输出、生成任务、模型能力、Prompt 模板的基础读写和生成任务认领。
+- 个人创作 SaaS 后端：媒体上传改为 `MediaObject` 主路径，按媒体 ID 生成 R2/local 对象路径，支持上传大小限制、MIME 探测、图片尺寸记录、按 ID 读取和删除。
+- 个人创作 SaaS 后端/前端：模型请求入口改为 `MODEL_GATEWAY_*` 配置，新增后台模型网关配置页和连接测试，应用只连接 NewAPI，OpenRouter 渠道由 NewAPI 内部管理。
+- 个人创作 SaaS 后端/前端：新增模型能力、计费规则和 Prompt 模板后台配置；计费估算支持基础额度、输出数、参考图数、分辨率倍率和质量倍率。
+- 个人创作 SaaS 后端/前端：新增 ReferenceSet 和 ReferenceIntent API，支持参考图角色、权重、排序、所有权校验和编译预览，并提供前端 typed client。
+- 个人创作 SaaS 后端/前端：新增 GenerationRun、GenerationJob 和 PostgreSQL worker，支持创建生成任务、预扣额度、调用模型网关、保存常见图片输出、结算/失败退款和前端 typed client。
+- 多账号 SaaS 前端：画布项目登录后优先从 `/api/server/canvas-projects` 加载和保存，本地 Zustand 只保留运行时状态与未登录 fallback；画布节点类型新增媒体、提示词、参考图组、生成任务、结果组和便签等领域引用字段。
+- 个人创作 SaaS 前端：画布新增 ReferenceSet 节点与编排浮层，可创建参考图组、从已连接的云端媒体节点自动生成 ReferenceIntent、编辑角色/权重/备注，并调用编译预览。
+- 个人创作 SaaS 后端/前端：新增 GenerationRun detail 接口，并在画布新增 Generation 节点和 ResultGroup 节点；生成节点可创建/取消/重试后端任务、轮询 run/job/outputs，成功后自动展示结果组。
+- 个人创作 SaaS 后端/前端：素材库升级为云端 CreativeAsset，支持上传媒体生成素材、编辑标签/收藏/评分、删除素材、从结果组保存生成输出为素材，并在参考图编排器中把素材加入当前 ReferenceSet。
+- 个人创作 SaaS 后台：新增后台管理入口和生成审计页，可查看 GenerationRun / GenerationJob、搜索状态和错误，并对失败/取消的生成运行执行重试或对未完成任务触发失败退款。
+- 个人创作 SaaS Agent：新增产品内 Creative Agent 会话、消息和工具调用表；画布右侧 Agent 默认进入产品模式，可根据选中的云端媒体节点生成参考意图建议，用户确认后再写入 ReferenceSet。
+- 多账号 SaaS 前端：新增会员账号页和后台用户页；登录后图片、文字、音频和 OpenAI 兼容视频请求会走 `/api/server/ai/*`，未登录继续使用本地直连模式。
+- Docker 部署：根目录 Compose 使用 web、server 并连接 1Panel 既有 PostgreSQL；本地 Compose 才启动 postgres；部署环境变量统一为 `MODEL_GATEWAY_*`、R2、worker 和默认语言配置。
+- 文档：更新 SaaS 部署、本地开发、数据库结构和环境变量说明，明确应用只连接 NewAPI，OpenRouter 渠道在 NewAPI 内部管理，生产媒体默认使用 R2。
+- 画布稳定性：修复生产构建下画布详情页偶发加载失败、未登录参考图组/素材库误请求云端接口、登录后新建画布先 PATCH 导致 404、参考图组节点无法拖动，并移除画布顶部版本/GitHub 与本机 Agent 入口；需继续手测非模型生成的画布增删改、导入导出和素材管理路径。
+- 全站视觉重设计第一批：首页改为 Studio OS 创作仪表盘，新增首页快速入口、产品状态、创作流程和提示词封面兜底；同步升级全局主题 token、字体、顶部导航、移动端导航和右上角工具按钮视觉。
+- 前端告警修复：修复视频参数抽屉 `height`、画布生成/参考编排 `InputNumber addonBefore` 和提示词空封面 `img src=""` 引发的 Next/AntD 开发期错误覆盖层。
+- 顶部导航清理：普通页面顶栏移除版本号和 GitHub 开发入口，仅保留文档、配置和主题等产品内操作。
+- 画布素材插入修复：修复图片节点保存为素材后，从素材选择器插回画布变成空图片节点的问题；插入时会使用素材封面兜底，并保留云端媒体素材的 `mediaObjectId`。
+- 参考图组交互修复：本地画布图片可在参考图组编辑器中手动加入参考，加入时会先上传为后端媒体；预览按钮会兼容后端返回空 warnings / enabledReferences 的情况，不再触发页面错误覆盖层；参考意图行改为分层布局，避免角色、权重和启用开关在窄面板中重叠；来源卡片会记录画布节点关联，刷新或编辑参考意图后仍能识别已加入状态。
+- 参考图组局部意图：同一张画布来源图可继续添加整图参考、构图参考、局部框选参考和风格参考；局部框选会保存 `cropJson`，意图行显示裁剪缩略图，支持删除单条参考意图，编译预览文本会输出 crop 坐标。
+- 参考图组编排稳定性：编译预览的提示词和预览结果会由画布页保存草稿，拖动节点或面板短暂重绘后不应再丢失预览内容。
+- SaaS 拦截与网关收网：彻底移除了前端直连和WebDAV连接方式，AI 请求强制走后端网关，加强了SaaS登录拦截体验。
 - 模型专属矩阵（Google Vertex AI）：模型矩阵全面适配 Google 生态。文本预设为 Gemini 3.5 Flash；生图预设为 Nano Banana 2 (Gemini 3.1 Flash Image) 系列；视频预设为 Google Veo 3.1（包含 Fast/Lite 版本）；音频预设为 Gemini 3.1 Flash TTS。
 - Google 图片规格适配：生图和图生图请求会把像素尺寸转换为模型支持的 `resolution` 与 `aspect_ratio`，不再向 Gemini 图片模型发送 `1280x720` 等无效裸尺寸；设置面板只展示当前模型支持的分辨率和标准宽高比，需人工验证 Lite 1K、Flash 2K/4K 与参考图编辑。
 - 网关路由智能兼容：在后端 `joinGatewayURL` 中实现智能校验，自动补齐缺失 of /v1 或 /v1beta 路径，解决生图代理返回 HTML 网页导致的白屏 Bug。
 - 个人创作 SaaS 前端：修复了生图工作台及画布点击“加入我的素材”无法同步至云端数据库的 Bug，通过 Zustand Action 自动同步镜像上传，并在“选择素材”弹窗中实现本地与云端素材归一化合并与去重。
 - 本地管理员初始化：本地 Compose 会把 `BOOTSTRAP_ADMIN_EMAIL` 注入后端；已将现有 `orange` 账号提升为管理员并清理自动化测试管理员，需确认重新进入页面后可见“后台管理”入口。
 - 本地调试优化：在前端 `package.json` 中新增 `dev:3006` 调试脚本，并在 `web/` 下配置 `.env.local` 代理至 `http://localhost:8085` 后端服务，方便本地并发调试。
-- 视频模型映射更新：在前端配置 `use-config-store.ts` 中，将 Google Veo 视频模型由原来的 `google/veo-3.1`, `google/veo-3.1-fast`, `google/veo-3.1-lite` 调整为更准确的 Vertex AI 官方 ID（且由于 New API 渠道匹配规则限制，去除了 `google/` 前缀）：`veo-3.1-generate-001`、`veo-3.1-fast-generate-001` 以及 `veo-3.1-lite-generate-001`。
-
-
+- 视频模型映射更新：在前端配置 `use-config-store.ts` 中，将 Google Veo 视频模型由原来的 `google/veo-3.1`, `google/veo-3.1-fast`, `google/veo-3.1-lite` 调整为更准确 of Vertex AI 官方 ID（且由于 New API 渠道限制，去除了 `google/` 前缀）：`veo-3.1-generate-001`、`veo-3.1-fast-generate-001` 以及 `veo-3.1-lite-generate-001`。
+- 视频模块移除 (方案 B)：物理删除了“视频创作台”页面及相关的 WebDAV 同步服务；在全局导航、首页快速入口中移除了视频页面入口。在画布配置节点中屏蔽了“视频”生成模式，在连线生成菜单中排除了“视频生成”节点类型，在拖拽和上传中限制视频文件；同时在 Go 后端屏蔽了 `/ai/videos` 网关代理路由。旧画布视频节点在前端保持只读播放兼容，规避数据损坏与系统崩溃。

@@ -303,8 +303,12 @@ function normalizeProject(project: Partial<CanvasProject>): CanvasProject {
         title: project.title || "未命名画布",
         createdAt: project.createdAt || now,
         updatedAt: project.updatedAt || now,
-        nodes: Array.isArray(project.nodes) ? project.nodes : [],
-        connections: Array.isArray(project.connections) ? project.connections : [],
+        nodes: Array.isArray(project.nodes) ? project.nodes.filter(node => node.type !== "video" && node.type !== "audio") : [],
+        connections: Array.isArray(project.connections) ? project.connections.filter(conn => {
+            const validNodes = Array.isArray(project.nodes) ? project.nodes : [];
+            const exists = (id) => validNodes.some(node => node.id === id && node.type !== "video" && node.type !== "audio");
+            return exists(conn.fromNodeId) && exists(conn.toNodeId);
+        }) : [],
         chatSessions: Array.isArray(project.chatSessions) ? project.chatSessions : [],
         activeChatId: project.activeChatId || null,
         backgroundMode: backgroundModeValue(project.backgroundMode),

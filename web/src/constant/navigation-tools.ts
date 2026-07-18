@@ -12,11 +12,6 @@ export const navigationTools = [
         icon: ImagePlus,
     },
     {
-        slug: "video",
-        label: "视频创作台",
-        icon: Video,
-    },
-    {
         slug: "prompts",
         label: "提示词库",
         icon: FileText,

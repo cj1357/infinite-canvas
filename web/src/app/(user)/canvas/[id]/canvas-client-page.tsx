@@ -180,7 +180,7 @@ function CanvasRefreshShell() {
     );
 }
 
-function ConnectionCreateMenu({ pending, onCreate, onClose }: { pending: PendingConnectionCreate; onCreate: (type: CanvasNodeType.Image | CanvasNodeType.Text | CanvasNodeType.Config | CanvasNodeType.ReferenceSet | CanvasNodeType.Generation | CanvasNodeType.Video | CanvasNodeType.Audio) => void; onClose: () => void }) {
+function ConnectionCreateMenu({ pending, onCreate, onClose }: { pending: PendingConnectionCreate; onCreate: (type: CanvasNodeType.Image | CanvasNodeType.Text | CanvasNodeType.Config | CanvasNodeType.ReferenceSet | CanvasNodeType.Generation) => void; onClose: () => void }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     return (
         <div
@@ -201,8 +201,6 @@ function ConnectionCreateMenu({ pending, onCreate, onClose }: { pending: Pending
             <div className="grid gap-1">
                 <ConnectionCreateOption theme={theme} icon={<List className="size-5" />} title="文本生成" description="脚本、广告词、品牌文案" onClick={() => onCreate(CanvasNodeType.Text)} />
                 <ConnectionCreateOption theme={theme} icon={<ImageIcon className="size-5" />} title="图片生成" onClick={() => onCreate(CanvasNodeType.Image)} />
-                <ConnectionCreateOption theme={theme} icon={<Video className="size-5" />} title="视频生成" onClick={() => onCreate(CanvasNodeType.Video)} />
-                <ConnectionCreateOption theme={theme} icon={<Music2 className="size-5" />} title="音频参考" onClick={() => onCreate(CanvasNodeType.Audio)} />
                 <ConnectionCreateOption theme={theme} icon={<Images className="size-5" />} title="参考图组" onClick={() => onCreate(CanvasNodeType.ReferenceSet)} />
                 <ConnectionCreateOption theme={theme} icon={<Bot className="size-5" />} title="生成任务" onClick={() => onCreate(CanvasNodeType.Generation)} />
                 <ConnectionCreateOption theme={theme} icon={<Settings2 className="size-5" />} title="配置节点" description="模型、尺寸、数量和输入顺序" onClick={() => onCreate(CanvasNodeType.Config)} />
@@ -608,7 +606,7 @@ function InfiniteCanvasPage() {
     );
 
     const createConnectedNode = useCallback(
-        (type: CanvasNodeType.Image | CanvasNodeType.Text | CanvasNodeType.Config | CanvasNodeType.ReferenceSet | CanvasNodeType.Generation | CanvasNodeType.Video | CanvasNodeType.Audio, pending: PendingConnectionCreate) => {
+        (type: CanvasNodeType.Image | CanvasNodeType.Text | CanvasNodeType.Config | CanvasNodeType.ReferenceSet | CanvasNodeType.Generation, pending: PendingConnectionCreate) => {
             const metadata = type === CanvasNodeType.Config ? { model: effectiveConfig.imageModel || effectiveConfig.model, size: effectiveConfig.size, count: getGenerationCount(effectiveConfig.canvasImageCount || effectiveConfig.count) } : undefined;
             const newNode = createCanvasNode(type, pending.position, metadata);
             const connection = normalizeConnection(pending.connection.nodeId, newNode.id, [...nodesRef.current, newNode], pending.connection.handleType);
@@ -620,7 +618,7 @@ function InfiniteCanvasPage() {
             setConnections((prev) => [...prev, { id: nanoid(), ...connection }]);
             setSelectedNodeIds(new Set([newNode.id]));
             setSelectedConnectionId(null);
-            if (type !== CanvasNodeType.Text && type !== CanvasNodeType.Audio) setDialogNodeId(newNode.id);
+            if (type !== CanvasNodeType.Text) setDialogNodeId(newNode.id);
             setPendingConnectionCreate(null);
             setConnecting(null);
         },
@@ -1999,7 +1997,7 @@ function InfiniteCanvasPage() {
         async (event: ReactChangeEvent<HTMLInputElement>) => {
             const file = event.target.files?.[0];
             const target = uploadTargetRef.current;
-            if (!file || (!file.type.startsWith("image/") && !file.type.startsWith("video/") && !isAudioFile(file))) return;
+            if (!file || !file.type.startsWith("image/")) return;
 
             if (target?.nodeId) {
                 if (isAudioFile(file)) {
@@ -2061,7 +2059,7 @@ function InfiniteCanvasPage() {
                 setDialogNodeId(target.nodeId);
             } else {
                 const position = target?.position || screenToCanvas((containerRef.current?.getBoundingClientRect().left || 0) + size.width / 2, (containerRef.current?.getBoundingClientRect().top || 0) + size.height / 2);
-                void (isAudioFile(file) ? createAudioFileNode(file, position) : file.type.startsWith("video/") ? createVideoFileNode(file, position) : createImageFileNode(file, position));
+                void createImageFileNode(file, position);
             }
 
             uploadTargetRef.current = null;
@@ -2073,11 +2071,11 @@ function InfiniteCanvasPage() {
     const handleDrop = useCallback(
         (event: ReactDragEvent<HTMLDivElement>) => {
             event.preventDefault();
-            const file = Array.from(event.dataTransfer.files).find((item) => item.type.startsWith("image/") || item.type.startsWith("video/") || isAudioFile(item));
+            const file = Array.from(event.dataTransfer.files).find((item) => item.type.startsWith("image/"));
             if (!file) return;
 
             const pos = screenToCanvas(event.clientX, event.clientY);
-            void (isAudioFile(file) ? createAudioFileNode(file, pos) : file.type.startsWith("video/") ? createVideoFileNode(file, pos) : createImageFileNode(file, pos));
+            void createImageFileNode(file, pos);
         },
         [createAudioFileNode, createImageFileNode, createVideoFileNode, screenToCanvas],
     );
@@ -2928,8 +2926,6 @@ function InfiniteCanvasPage() {
                     backgroundMode={backgroundMode}
                     showImageInfo={showImageInfo}
                     onAddImage={() => createNode(CanvasNodeType.Image)}
-                    onAddVideo={() => createNode(CanvasNodeType.Video)}
-                    onAddAudio={() => createNode(CanvasNodeType.Audio)}
                     onAddText={() => createNode(CanvasNodeType.Text)}
                     onAddReferenceSet={() => createNode(CanvasNodeType.ReferenceSet)}
                     onAddGeneration={() => createNode(CanvasNodeType.Generation)}
