@@ -77,14 +77,14 @@ export const defaultConfig: AiConfig = {
             models: [
                 "google/gemini-3.5-flash", "google/gemini-3.1-flash-lite", "google/gemini-2.5-pro", "google/gemini-2.5-flash",
                 "google/gemini-3.1-flash-image", "google/gemini-3.1-flash-lite-image", "google/gemini-3-pro-image", "google/gemini-2.5-flash-image",
-                "google/veo-3.1", "google/veo-3.1-fast", "google/veo-3.1-lite",
+                "veo-3.1-generate-001", "veo-3.1-fast-generate-001", "veo-3.1-lite-generate-001",
                 "google/gemini-3.1-flash-tts-preview"
             ],
         },
     ],
     model: "default::google/gemini-3.5-flash",
     imageModel: "default::google/gemini-3.1-flash-image",
-    videoModel: "default::google/veo-3.1",
+    videoModel: "default::veo-3.1-generate-001",
     textModel: "default::google/gemini-3.5-flash",
     audioModel: "default::google/gemini-3.1-flash-tts-preview",
     audioVoice: "alloy",
@@ -99,14 +99,14 @@ export const defaultConfig: AiConfig = {
     models: [
         "default::google/gemini-3.5-flash", "default::google/gemini-3.1-flash-lite", "default::google/gemini-2.5-pro", "default::google/gemini-2.5-flash",
         "default::google/gemini-3.1-flash-image", "default::google/gemini-3.1-flash-lite-image", "default::google/gemini-3-pro-image", "default::google/gemini-2.5-flash-image",
-        "default::google/veo-3.1", "default::google/veo-3.1-fast", "default::google/veo-3.1-lite",
+        "default::veo-3.1-generate-001", "default::veo-3.1-fast-generate-001", "default::veo-3.1-lite-generate-001",
         "default::google/gemini-3.1-flash-tts-preview"
     ],
     imageModels: [
         "default::google/gemini-3.1-flash-image", "default::google/gemini-3.1-flash-lite-image", "default::google/gemini-3-pro-image", "default::google/gemini-2.5-flash-image"
     ],
     videoModels: [
-        "default::google/veo-3.1", "default::google/veo-3.1-fast", "default::google/veo-3.1-lite"
+        "default::veo-3.1-generate-001", "default::veo-3.1-fast-generate-001", "default::veo-3.1-lite-generate-001"
     ],
     textModels: [
         "default::google/gemini-3.5-flash", "default::google/gemini-3.1-flash-lite", "default::google/gemini-2.5-pro", "default::google/gemini-2.5-flash"
