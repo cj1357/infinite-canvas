@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { App, Button, Checkbox, Drawer, Empty, Image, Input, Modal, Tag, Tooltip, Typography } from "antd";
 import localforage from "localforage";
 import { saveAs } from "file-saver";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ImageSettingsPanel } from "@/components/image-settings-panel";
 import { ModelPicker } from "@/components/model-picker";
@@ -72,6 +72,7 @@ const logStore = localforage.createInstance({ name: "infinite-canvas", storeName
 
 export default function ImagePage() {
     const { message } = App.useApp();
+    const queryClient = useQueryClient();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const config = useConfigStore((state) => state.config);
     const effectiveConfig = useEffectiveConfig();
@@ -95,16 +96,18 @@ export default function ImagePage() {
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
     const model = effectiveConfig.imageModel || effectiveConfig.model;
+    const capabilityModel = modelOptionName(model);
     const capabilityQuery = useQuery({
-        queryKey: ["image-model-capability", modelOptionName(model)],
-        queryFn: () => resolveImageModelCapability(modelOptionName(model)),
-        enabled: Boolean(modelOptionName(model)),
+        queryKey: ["image-model-capability", capabilityModel],
+        queryFn: () => resolveImageModelCapability(capabilityModel),
+        enabled: Boolean(capabilityModel),
         staleTime: 10 * 60 * 1000,
     });
     const capability = capabilityQuery.data;
-    const canGenerate = Boolean(prompt.trim() && capability && !capabilityQuery.isFetching);
+    const capabilityReady = Boolean(capability && !capabilityQuery.isFetching && !capabilityQuery.error);
+    const canGenerate = Boolean(prompt.trim() && capabilityReady);
     const generationCount = Math.max(1, Math.min(10, Number(config.count) || 1));
-    const availableReferenceSlots = capability?.supportsReferences ? Math.max(0, capability.maxReferences - references.length) : 0;
+    const availableReferenceSlots = capabilityReady && capability?.supportsReferences ? Math.max(0, capability.maxReferences - references.length) : 0;
 
     useEffect(() => {
         if (!capability) return;
@@ -127,11 +130,33 @@ export default function ImagePage() {
         void refreshLogs();
     }, []);
 
+    const appendReferences = (nextReferences: ReferenceImage[], expectedModel: string) => {
+        setReferences((prev) => {
+            const currentConfig = useConfigStore.getState().config;
+            const currentModel = modelOptionName(currentConfig.imageModel || currentConfig.model);
+            const currentCapabilityState = queryClient.getQueryState<ImageModelCapability>(["image-model-capability", currentModel]);
+            const currentCapability = currentCapabilityState?.data;
+            if (
+                currentModel !== expectedModel ||
+                currentCapabilityState?.fetchStatus !== "idle" ||
+                currentCapabilityState.error ||
+                !currentCapability?.supportsReferences ||
+                currentCapability.model !== currentModel
+            ) {
+                return prev;
+            }
+            const availableSlots = Math.max(0, currentCapability.maxReferences - prev.length);
+            const additions = nextReferences.slice(0, availableSlots);
+            return additions.length ? [...prev, ...additions] : prev;
+        });
+    };
+
     const addReferences = async (files?: FileList | null) => {
         if (!availableReferenceSlots) {
             showReferenceLimitWarning();
             return;
         }
+        const expectedModel = capabilityModel;
         const imageFiles = Array.from(files || [])
             .filter((file) => file.type.startsWith("image/"))
             .slice(0, availableReferenceSlots);
@@ -141,7 +166,7 @@ export default function ImagePage() {
                 return { id: nanoid(), name: file.name, type: image.mimeType, dataUrl: image.url, storageKey: image.storageKey };
             }),
         );
-        setReferences((value) => [...value, ...nextReferences]);
+        appendReferences(nextReferences, expectedModel);
     };
 
     const addReferencesFromClipboard = async () => {
@@ -149,6 +174,7 @@ export default function ImagePage() {
             showReferenceLimitWarning();
             return;
         }
+        const expectedModel = capabilityModel;
         try {
             const items = await navigator.clipboard.read();
             const blobs = await Promise.all(items.flatMap((item) => item.types.filter((type) => type.startsWith("image/")).map((type) => item.getType(type))).slice(0, availableReferenceSlots));
@@ -162,7 +188,7 @@ export default function ImagePage() {
                     return { id: nanoid(), name: `clipboard-${index + 1}.png`, type: image.mimeType, dataUrl: image.url, storageKey: image.storageKey };
                 }),
             );
-            setReferences((value) => [...value, ...nextReferences]);
+            appendReferences(nextReferences, expectedModel);
             message.success(`已读取 ${nextReferences.length} 张参考图`);
         } catch {
             message.error("剪切板里没有可读取的图片");
@@ -234,8 +260,9 @@ export default function ImagePage() {
             showReferenceLimitWarning();
             return;
         }
+        const expectedModel = capabilityModel;
         const stored = await uploadImage(image.dataUrl);
-        setReferences((value) => [...value, { id: nanoid(), name: `result-${index + 1}.png`, type: stored.mimeType, dataUrl: stored.url, storageKey: stored.storageKey }]);
+        appendReferences([{ id: nanoid(), name: `result-${index + 1}.png`, type: stored.mimeType, dataUrl: stored.url, storageKey: stored.storageKey }], expectedModel);
         message.success("已加入参考图");
     };
 
@@ -262,8 +289,9 @@ export default function ImagePage() {
                 setAssetPickerOpen(false);
                 return;
             }
+            const expectedModel = capabilityModel;
             const stored = await uploadImage(payload.dataUrl);
-            setReferences((value) => [...value, { id: nanoid(), name: payload.title, type: stored.mimeType, dataUrl: stored.url, storageKey: stored.storageKey }]);
+            appendReferences([{ id: nanoid(), name: payload.title, type: stored.mimeType, dataUrl: stored.url, storageKey: stored.storageKey }], expectedModel);
         } else {
             message.warning("生图工作台只能使用文本或图片素材");
         }
@@ -324,7 +352,7 @@ export default function ImagePage() {
             openConfigDialog(true);
             return null;
         }
-        if (!capability) {
+        if (!capabilityReady || !capability) {
             message.error("模型能力尚未加载");
             return null;
         }
