@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
     imageCapabilityOptions,
+    imageCapabilityOutputLimit,
     isImageModelCapabilityReady,
     mergeImageReferencesForCapability,
     normalizeImageCapabilitySelection,
@@ -22,6 +23,13 @@ const capability: ImageModelCapability = {
 };
 
 describe("image workbench capability guards", () => {
+    test("caps visible generation counts to the selected model capability", () => {
+        expect(imageCapabilityOutputLimit(capability, 15)).toBe(1);
+        expect(imageCapabilityOutputLimit({ ...capability, maxOutputsPerRequest: 4 }, 15)).toBe(4);
+        expect(imageCapabilityOutputLimit(undefined, 15)).toBe(15);
+        expect(imageCapabilityOutputLimit(capability, 15, false)).toBe(15);
+    });
+
     for (const item of [
         { name: "null", capability: JSON.parse(JSON.stringify({ ...capability, supportedRatios: null, supportedResolutions: null })) },
         { name: "undefined", capability: JSON.parse(JSON.stringify({ ...capability, supportedRatios: undefined, supportedResolutions: undefined })) },

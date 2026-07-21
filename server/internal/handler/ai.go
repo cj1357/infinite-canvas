@@ -32,6 +32,22 @@ func (h *AIHandler) ProxyPost(ability string, upstreamPath string) gin.HandlerFu
 	}
 }
 
+func (h *AIHandler) ProxyImageGeneration() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		body, err := io.ReadAll(c.Request.Body)
+		if err != nil {
+			httpx.Fail(c, http.StatusBadRequest, "读取请求失败")
+			return
+		}
+		prepared, err := h.gateway.PrepareImageGenerationRequest(body)
+		if err != nil {
+			httpx.Fail(c, http.StatusBadRequest, err.Error())
+			return
+		}
+		h.proxyPost(c, "/images/generations", c.Request.Header, prepared, h.gateway.ExtractEstimateRequest("image_generation", c.GetHeader("Content-Type"), prepared))
+	}
+}
+
 func (h *AIHandler) ProxyImageEdit() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		body, err := io.ReadAll(c.Request.Body)

@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 import { dataUrlToFile } from "@/lib/image-utils";
 import { resolveGoogleImageRequestOptions } from "@/lib/image-generation-options";
 import {
+    imageReferencesForCapability,
     resolveImageCapabilityRequestOptions,
     type ImageModelCapability,
 } from "@/lib/image-model-capability";
@@ -668,11 +669,13 @@ export async function requestGeneration(config: AiConfig, prompt: string, option
 export async function requestEdit(config: AiConfig, prompt: string, references: ReferenceImage[], mask?: ReferenceImage, options?: RequestOptions) {
     const requestConfig = resolveModelRequestConfig(config, config.model || config.imageModel);
     const n = Math.max(1, Math.min(15, Math.floor(Math.abs(Number(config.count)) || 1)));
-    const requestPrompt = buildImageReferencePromptText(prompt, references);
+    if (options?.imageCapability && !options.imageCapability.supportsReferences && references.length) throw new Error("当前模型不支持参考图");
+    const supportedReferences = options?.imageCapability ? imageReferencesForCapability(options.imageCapability, references) : references;
+    const requestPrompt = buildImageReferencePromptText(prompt, supportedReferences);
     if (!isServerAIEnabled() && requestConfig.apiFormat === "gemini") {
         if (mask) throw new Error("Gemini 调用格式暂不支持蒙版编辑");
         try {
-            return await requestGeminiImages(requestConfig, requestPrompt, references, n, options);
+            return await requestGeminiImages(requestConfig, requestPrompt, supportedReferences, n, options);
         } catch (error) {
             throw new Error(readAxiosError(error, "请求失败"));
         }
@@ -694,7 +697,7 @@ export async function requestEdit(config: AiConfig, prompt: string, references: 
     if (requestSize) {
         formData.set("size", requestSize);
     }
-    const files = await Promise.all(references.map(async (image) => dataUrlToFile({ ...image, dataUrl: await imageToDataUrl(image) })));
+    const files = await Promise.all(supportedReferences.map(async (image) => dataUrlToFile({ ...image, dataUrl: await imageToDataUrl(image) })));
     files.forEach((file) => formData.append("image", file));
     if (mask) formData.set("mask", dataUrlToFile(mask));
 

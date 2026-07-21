@@ -173,6 +173,19 @@ func (s *ModelGatewayService) Proxy(ctx context.Context, method string, path str
 	return client.Do(req)
 }
 
+func (s *ModelGatewayService) PrepareImageGenerationRequest(body []byte) ([]byte, error) {
+	payload := map[string]any{}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, fmt.Errorf("解析生图请求失败: %w", err)
+	}
+	applyOpenRouterVertexProvider(payload)
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("编码生图请求失败: %w", err)
+	}
+	return encoded, nil
+}
+
 func (s *ModelGatewayService) PrepareImageEditRequest(contentType string, body []byte) (PreparedImageEditRequest, error) {
 	mediaType, values, err := mime.ParseMediaType(contentType)
 	if err != nil || mediaType != "multipart/form-data" || values["boundary"] == "" {
@@ -226,6 +239,7 @@ func (s *ModelGatewayService) PrepareImageEditRequest(contentType string, body [
 		payload["prompt"] = strings.TrimSpace(prompt) + "\n\n" + imageMaskPromptSuffix
 	}
 	payload["input_references"] = references
+	applyOpenRouterVertexProvider(payload)
 	estimateParams["reference_count"] = len(references)
 
 	encoded, err := json.Marshal(payload)
@@ -244,6 +258,10 @@ func (s *ModelGatewayService) PrepareImageEditRequest(contentType string, body [
 			Params:  estimateParams,
 		},
 	}, nil
+}
+
+func applyOpenRouterVertexProvider(payload map[string]any) {
+	payload["provider"] = map[string]any{"only": []string{"google-vertex"}}
 }
 
 func firstMultipartValue(values []string) string {
@@ -378,10 +396,10 @@ func joinGatewayURL(baseURL string, path string) (string, error) {
 	}
 	basePath := strings.ToLower(parsed.Path)
 	targetPath := "/" + strings.TrimLeft(path, "/")
-	if !strings.HasSuffix(basePath, "/v1") && 
-	   !strings.HasSuffix(basePath, "/v1beta") && 
-	   !strings.HasPrefix(targetPath, "/v1/") && 
-	   !strings.HasPrefix(targetPath, "/v1beta/") {
+	if !strings.HasSuffix(basePath, "/v1") &&
+		!strings.HasSuffix(basePath, "/v1beta") &&
+		!strings.HasPrefix(targetPath, "/v1/") &&
+		!strings.HasPrefix(targetPath, "/v1beta/") {
 		targetPath = "/v1" + targetPath
 	}
 	parsed.Path = strings.TrimRight(parsed.Path, "/") + targetPath

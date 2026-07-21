@@ -26,6 +26,12 @@ export function imageCapabilityOptions(capability?: ImageModelCapability) {
     };
 }
 
+export function imageCapabilityOutputLimit(capability: ImageModelCapability | undefined, fallback: number, limitByCapability = true) {
+    if (!limitByCapability) return Math.max(1, fallback || 1);
+    const limit = Math.max(1, Math.floor(Number(capability?.maxOutputsPerRequest) || fallback || 1));
+    return Math.min(Math.max(1, fallback || 1), limit);
+}
+
 export function resolveImageReferenceAvailability({ capability, isFetching, error, currentCount }: ImageCapabilityRuntimeState & { currentCount: number }) {
     const supportsReferences = Boolean(capability?.supportsReferences);
     const maxReferences = supportsReferences ? Math.max(0, Number(capability?.maxReferences) || 0) : 0;

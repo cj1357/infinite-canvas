@@ -15,6 +15,41 @@ describe("ui warning patterns", () => {
         expect(source("src/app/(user)/video/page.tsx")).not.toContain("<Drawer title=\"参数\" placement=\"bottom\" height=");
     });
 
+    test("image workbench result previews preserve their original aspect ratio", () => {
+        const page = source("src/app/(user)/image/page.tsx");
+        expect(page).toContain('className="block h-auto w-full"');
+        expect(page).not.toContain('className="aspect-square object-cover"');
+    });
+
+    test("canvas image settings resolve the selected model capability before showing options", () => {
+        const popover = source("src/app/(user)/canvas/components/canvas-image-settings-popover.tsx");
+        expect(popover).toContain("resolveImageModelCapability");
+        expect(popover).toContain('["image-model-capability", capabilityModel]');
+        expect(popover).toContain("capability={capability}");
+        expect(popover).toContain("limitCountByCapability={false}");
+    });
+
+    test("canvas generation sends the selected model capability with image requests", () => {
+        const page = source("src/app/(user)/canvas/[id]/canvas-client-page.tsx");
+        expect(page).toContain("resolveCanvasImageRequestOptions");
+        expect(page).toContain("imageCapability: await resolveImageModelCapability");
+    });
+
+    test("canvas prompt model picker reserves room for the complete model name", () => {
+        expect(source("src/app/(user)/canvas/components/canvas-node-prompt-panel.tsx")).toContain('className="!w-[290px] !shrink-0"');
+    });
+
+    test("image-node prompt panel reserves space for model and settings controls", () => {
+        expect(source("src/app/(user)/canvas/components/canvas-node.tsx")).toContain('data.type === CanvasNodeType.Image ? "w-[600px]" : "w-[500px]"');
+    });
+
+    test("configuration nodes place model selection and image settings on separate rows", () => {
+        const panel = source("src/app/(user)/canvas/components/canvas-config-node-panel.tsx");
+        expect(panel).toContain('className="mb-2 grid min-w-0 cursor-default grid-cols-1 gap-2"');
+        expect(panel).toContain('className="canvas-compact-control h-10"');
+        expect(panel).not.toContain("fullWidth multiline");
+    });
+
     test("canvas input numbers avoid deprecated addonBefore", () => {
         expect(source("src/app/(user)/canvas/components/generation-node.tsx")).not.toContain("addonBefore=");
         expect(source("src/app/(user)/canvas/components/reference-composer.tsx")).not.toContain("addonBefore=");

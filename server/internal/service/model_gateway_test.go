@@ -91,6 +91,10 @@ func TestPrepareImageEditRequestBuildsGenerationPayloadForEveryModel(t *testing.
 			if payload["n"] != float64(1) || payload["resolution"] != "1K" || payload["aspect_ratio"] != "3:4" {
 				t.Fatalf("generation options were not preserved: %#v", payload)
 			}
+			provider, ok := payload["provider"].(map[string]any)
+			if !ok || len(provider["only"].([]any)) != 1 || provider["only"].([]any)[0] != "google-vertex" {
+				t.Fatalf("google vertex provider was not preserved: %#v", payload["provider"])
+			}
 			references, ok := payload["input_references"].([]any)
 			if !ok || len(references) != 1 {
 				t.Fatalf("unexpected references: %#v", payload["input_references"])
@@ -110,6 +114,25 @@ func TestPrepareImageEditRequestBuildsGenerationPayloadForEveryModel(t *testing.
 				t.Fatalf("internal billing field leaked upstream: %#v", payload)
 			}
 		})
+	}
+}
+
+func TestPrepareImageGenerationRequestAddsGoogleVertexProvider(t *testing.T) {
+	prepared, err := (&ModelGatewayService{}).PrepareImageGenerationRequest([]byte(`{
+		"model":"google/gemini-3.1-flash-image",
+		"prompt":"生成商品海报",
+		"input_references":[{"type":"image_url","image_url":{"url":"data:image/png;base64,aGVsbG8="}}]
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := decodePreparedBody(t, prepared)
+	provider, ok := payload["provider"].(map[string]any)
+	if !ok || len(provider["only"].([]any)) != 1 || provider["only"].([]any)[0] != "google-vertex" {
+		t.Fatalf("google vertex provider missing: %#v", payload["provider"])
+	}
+	if payload["input_references"] == nil {
+		t.Fatalf("existing image parameters were lost: %#v", payload)
 	}
 }
 

@@ -1,11 +1,11 @@
 "use client";
 
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { ConfigProvider, Switch } from "antd";
 
 import { type CanvasTheme } from "@/lib/canvas-theme";
 import { getGoogleImageResolutionOptions, resolveGoogleImageAspectRatio, resolveGoogleImageRequestOptions } from "@/lib/image-generation-options";
-import { imageCapabilityOptions, type ImageModelCapability } from "@/lib/image-model-capability";
+import { imageCapabilityOptions, imageCapabilityOutputLimit, type ImageModelCapability } from "@/lib/image-model-capability";
 import type { AiConfig } from "@/stores/use-config-store";
 
 const qualityOptions = [
@@ -41,9 +41,10 @@ type ImageSettingsPanelProps = {
     className?: string;
     maxCount?: number;
     quickCount?: number;
+    limitCountByCapability?: boolean;
 };
 
-export function ImageSettingsPanel({ config, capability, onConfigChange, theme, showTitle = true, className = "w-[320px] space-y-4 rounded-2xl px-1 py-0.5", maxCount = 15, quickCount = 10 }: ImageSettingsPanelProps) {
+export function ImageSettingsPanel({ config, capability, onConfigChange, theme, showTitle = true, className = "w-[320px] space-y-4 rounded-2xl px-1 py-0.5", maxCount = 15, quickCount = 10, limitCountByCapability = true }: ImageSettingsPanelProps) {
     const [snapDimensionToStep, setSnapDimensionToStep] = useState(true);
     const googleResolutions = getGoogleImageResolutionOptions(config.imageModel || config.model);
     const googleOptions = resolveGoogleImageRequestOptions(config.imageModel || config.model, config.quality, config.size);
@@ -53,7 +54,8 @@ export function ImageSettingsPanel({ config, capability, onConfigChange, theme, 
     const visibleQualityOptions = capability ? supportedResolutions.map((value) => ({ value, label: value })) : isGoogleImage ? (googleResolutions || []).map((value) => ({ value, label: value })) : qualityOptions;
     const visibleAspectOptions = capability ? supportedRatios.map(capabilityAspectOption) : isGoogleImage ? aspectOptions.filter((item) => !item.size) : aspectOptions;
     const quality = capability ? config.quality : googleOptions?.resolution || config.quality || "auto";
-    const count = Math.max(1, Math.min(maxCount, Math.floor(Math.abs(Number(config.count)) || 1)));
+    const outputLimit = imageCapabilityOutputLimit(capability, maxCount, limitCountByCapability);
+    const count = Math.max(1, Math.min(outputLimit, Math.floor(Math.abs(Number(config.count)) || 1)));
     const activeSize = config.size || "auto";
     const selectedAspect = capability
         ? visibleAspectOptions.find((item) => item.value === config.size)
@@ -75,6 +77,10 @@ export function ImageSettingsPanel({ config, capability, onConfigChange, theme, 
         const height = key === "height" ? next : dimensions.height;
         onConfigChange("size", `${alignDimension(width, snapDimensionToStep)}x${alignDimension(height, snapDimensionToStep)}`);
     };
+
+    useEffect(() => {
+        if (limitCountByCapability && capability && String(count) !== config.count) onConfigChange("count", String(count));
+    }, [capability, config.count, count, limitCountByCapability, onConfigChange]);
 
     return (
         <ImageSettingsTheme theme={theme}>
@@ -137,12 +143,12 @@ export function ImageSettingsPanel({ config, capability, onConfigChange, theme, 
                 <div className="space-y-2.5">
                     <SettingTitle color={theme.node.muted}>生成张数</SettingTitle>
                     <div className="grid grid-cols-4 gap-2.5">
-                        {Array.from({ length: quickCount }, (_, index) => index + 1).map((value) => (
+                        {Array.from({ length: Math.min(quickCount, outputLimit) }, (_, index) => index + 1).map((value) => (
                             <OptionPill key={value} selected={count === value} theme={theme} onClick={() => onConfigChange("count", String(value))}>
                                 {value} 张
                             </OptionPill>
                         ))}
-                        <CountInput value={count} max={maxCount} theme={theme} onChange={(value) => onConfigChange("count", String(value || 1))} />
+                        {outputLimit > 1 ? <CountInput value={count} max={outputLimit} theme={theme} onChange={(value) => onConfigChange("count", String(value || 1))} /> : null}
                     </div>
                 </div>
             </div>

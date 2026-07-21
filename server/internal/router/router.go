@@ -108,7 +108,7 @@ func New(repo *repository.Repository, store storage.Store, cfg config.Config) *g
 	protected.POST("/agent/sessions/:id/messages", agentHandler.SendMessage)
 	protected.POST("/agent/tool-calls/:id/apply", agentHandler.ApplyToolCall)
 
-	protected.POST("/ai/images/generations", aiHandler.ProxyPost("image_generation", "/images/generations"))
+	protected.POST("/ai/images/generations", aiHandler.ProxyImageGeneration())
 	protected.POST("/ai/images/edits", aiHandler.ProxyImageEdit())
 	protected.POST("/ai/responses", aiHandler.ProxyPost("text_response", "/responses"))
 	protected.POST("/ai/audio/speech", aiHandler.ProxyPost("audio_speech", "/audio/speech"))
