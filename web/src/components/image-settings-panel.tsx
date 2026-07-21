@@ -5,6 +5,7 @@ import { ConfigProvider, Switch } from "antd";
 
 import { type CanvasTheme } from "@/lib/canvas-theme";
 import { getGoogleImageResolutionOptions, resolveGoogleImageAspectRatio, resolveGoogleImageRequestOptions } from "@/lib/image-generation-options";
+import type { ImageModelCapability } from "@/lib/image-model-capability";
 import type { AiConfig } from "@/stores/use-config-store";
 
 const qualityOptions = [
@@ -33,6 +34,7 @@ const aspectOptions = [
 
 type ImageSettingsPanelProps = {
     config: AiConfig;
+    capability?: ImageModelCapability;
     onConfigChange: (key: "quality" | "size" | "count", value: string) => void;
     theme: CanvasTheme;
     showTitle?: boolean;
@@ -41,21 +43,28 @@ type ImageSettingsPanelProps = {
     quickCount?: number;
 };
 
-export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = true, className = "w-[320px] space-y-4 rounded-2xl px-1 py-0.5", maxCount = 15, quickCount = 10 }: ImageSettingsPanelProps) {
+export function ImageSettingsPanel({ config, capability, onConfigChange, theme, showTitle = true, className = "w-[320px] space-y-4 rounded-2xl px-1 py-0.5", maxCount = 15, quickCount = 10 }: ImageSettingsPanelProps) {
     const [snapDimensionToStep, setSnapDimensionToStep] = useState(true);
     const googleResolutions = getGoogleImageResolutionOptions(config.imageModel || config.model);
     const googleOptions = resolveGoogleImageRequestOptions(config.imageModel || config.model, config.quality, config.size);
     const isGoogleImage = googleResolutions !== null;
-    const visibleQualityOptions = isGoogleImage ? (googleResolutions || []).map((value) => ({ value, label: value })) : qualityOptions;
-    const visibleAspectOptions = isGoogleImage ? aspectOptions.filter((item) => !item.size) : aspectOptions;
-    const quality = googleOptions?.resolution || config.quality || "auto";
+    const capabilityMode = Boolean(capability);
+    const visibleQualityOptions = capability ? capability.supportedResolutions.map((value) => ({ value, label: value })) : isGoogleImage ? (googleResolutions || []).map((value) => ({ value, label: value })) : qualityOptions;
+    const visibleAspectOptions = capability ? capability.supportedRatios.map(capabilityAspectOption) : isGoogleImage ? aspectOptions.filter((item) => !item.size) : aspectOptions;
+    const quality = capability ? config.quality : googleOptions?.resolution || config.quality || "auto";
     const count = Math.max(1, Math.min(maxCount, Math.floor(Math.abs(Number(config.count)) || 1)));
     const activeSize = config.size || "auto";
-    const selectedAspect = isGoogleImage
-        ? visibleAspectOptions.find((item) => item.value === (resolveGoogleImageAspectRatio(activeSize) || "auto"))
-        : visibleAspectOptions.find((item) => (item.size || item.value) === activeSize || item.value === activeSize);
+    const selectedAspect = capability
+        ? visibleAspectOptions.find((item) => item.value === config.size)
+        : isGoogleImage
+          ? visibleAspectOptions.find((item) => item.value === (resolveGoogleImageAspectRatio(activeSize) || "auto"))
+          : visibleAspectOptions.find((item) => (item.size || item.value) === activeSize || item.value === activeSize);
     const dimensions = readSizeDimensions(activeSize, selectedAspect || aspectOptions[0]);
     const selectAspect = (value: string) => {
+        if (capabilityMode) {
+            onConfigChange("size", value);
+            return;
+        }
         const option = aspectOptions.find((item) => item.value === value);
         onConfigChange("size", option?.size || option?.value || "auto");
     };
@@ -79,7 +88,7 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
             >
                 {showTitle ? <div className="text-lg font-semibold">图像设置</div> : null}
                 {visibleQualityOptions.length ? <div className="space-y-2.5">
-                    <SettingTitle color={theme.node.muted}>{isGoogleImage ? "分辨率" : "质量"}</SettingTitle>
+                    <SettingTitle color={theme.node.muted}>{capabilityMode || isGoogleImage ? "分辨率" : "质量"}</SettingTitle>
                     <div className="grid grid-cols-4 gap-2.5">
                         {visibleQualityOptions.map((item) => (
                             <OptionPill key={item.value} selected={quality === item.value} theme={theme} onClick={() => onConfigChange("quality", item.value)}>
@@ -88,7 +97,7 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
                         ))}
                     </div>
                 </div> : null}
-                {!isGoogleImage ? <div className="space-y-2.5">
+                {!capabilityMode && !isGoogleImage ? <div className="space-y-2.5">
                     <div className="flex items-center justify-between gap-3">
                         <SettingTitle color={theme.node.muted}>尺寸</SettingTitle>
                         <div className="flex items-center gap-2">
@@ -231,6 +240,17 @@ function AspectIcon({ type, width, height, color }: { type: string; width: numbe
             <span className="border-2" style={{ width: boxWidth, height: boxHeight, borderColor: color }} />
         </span>
     );
+}
+
+function capabilityAspectOption(value: string) {
+    const [width, height] = value.split(":").map(Number);
+    return {
+        value,
+        label: value,
+        width: width || 1,
+        height: height || 1,
+        icon: width === height ? "square" : width > height ? "landscape" : "portrait",
+    };
 }
 
 function SettingTitle({ children, color }: { children: string; color: string }) {

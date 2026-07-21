@@ -5,18 +5,21 @@ import { useEffect, useRef, useState } from "react";
 import { App, Button, Checkbox, Drawer, Empty, Image, Input, Modal, Tag, Tooltip, Typography } from "antd";
 import localforage from "localforage";
 import { saveAs } from "file-saver";
+import { useQuery } from "@tanstack/react-query";
 
 import { ImageSettingsPanel } from "@/components/image-settings-panel";
 import { ModelPicker } from "@/components/model-picker";
 import { PromptSelectDialog } from "@/components/prompts/prompt-select-dialog";
 import { AssetPickerModal, type InsertAssetPayload } from "@/app/(user)/canvas/components/asset-picker-modal";
 import { canvasThemes } from "@/lib/canvas-theme";
+import { imageReferencesForCapability, normalizeImageCapabilitySelection, type ImageModelCapability } from "@/lib/image-model-capability";
 import { imageReferenceLabel } from "@/lib/image-reference-prompt";
-import { modelOptionLabel, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
+import { modelOptionLabel, modelOptionName, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { nanoid } from "nanoid";
 import { formatBytes, formatDuration, getDataUrlByteSize, readImageMeta } from "@/lib/image-utils";
 import { requestEdit, requestGeneration } from "@/services/api/image";
+import { resolveImageModelCapability } from "@/services/api/model-capabilities";
 import { deleteStoredImages, resolveImageUrl, uploadImage } from "@/services/image-storage";
 import { useAssetStore } from "@/stores/use-asset-store";
 import type { ReferenceImage } from "@/types/image";
@@ -92,8 +95,27 @@ export default function ImagePage() {
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
     const model = effectiveConfig.imageModel || effectiveConfig.model;
-    const canGenerate = Boolean(prompt.trim());
+    const capabilityQuery = useQuery({
+        queryKey: ["image-model-capability", modelOptionName(model)],
+        queryFn: () => resolveImageModelCapability(modelOptionName(model)),
+        enabled: Boolean(modelOptionName(model)),
+        staleTime: 10 * 60 * 1000,
+    });
+    const capability = capabilityQuery.data;
+    const canGenerate = Boolean(prompt.trim() && capability && !capabilityQuery.isFetching);
     const generationCount = Math.max(1, Math.min(10, Number(config.count) || 1));
+    const availableReferenceSlots = capability?.supportsReferences ? Math.max(0, capability.maxReferences - references.length) : 0;
+
+    useEffect(() => {
+        if (!capability) return;
+        const next = normalizeImageCapabilitySelection(capability, config.quality, config.size);
+        if (next.resolution && next.resolution !== config.quality) updateConfig("quality", next.resolution);
+        if (next.aspectRatio && next.aspectRatio !== config.size) updateConfig("size", next.aspectRatio);
+    }, [capability, config.quality, config.size, updateConfig]);
+
+    useEffect(() => {
+        if (capability && !capability.supportsReferences && references.length) message.warning("当前模型不支持参考图，生成时将忽略已选择的图片");
+    }, [capability?.model]);
 
     useEffect(() => {
         if (!running || !startedAt) return;
@@ -106,7 +128,13 @@ export default function ImagePage() {
     }, []);
 
     const addReferences = async (files?: FileList | null) => {
-        const imageFiles = Array.from(files || []).filter((file) => file.type.startsWith("image/"));
+        if (!availableReferenceSlots) {
+            showReferenceLimitWarning();
+            return;
+        }
+        const imageFiles = Array.from(files || [])
+            .filter((file) => file.type.startsWith("image/"))
+            .slice(0, availableReferenceSlots);
         const nextReferences = await Promise.all(
             imageFiles.map(async (file) => {
                 const image = await uploadImage(file);
@@ -117,9 +145,13 @@ export default function ImagePage() {
     };
 
     const addReferencesFromClipboard = async () => {
+        if (!availableReferenceSlots) {
+            showReferenceLimitWarning();
+            return;
+        }
         try {
             const items = await navigator.clipboard.read();
-            const blobs = await Promise.all(items.flatMap((item) => item.types.filter((type) => type.startsWith("image/")).map((type) => item.getType(type))));
+            const blobs = await Promise.all(items.flatMap((item) => item.types.filter((type) => type.startsWith("image/")).map((type) => item.getType(type))).slice(0, availableReferenceSlots));
             if (!blobs.length) {
                 message.error("剪切板里没有可读取的图片");
                 return;
@@ -198,6 +230,10 @@ export default function ImagePage() {
     };
 
     const addResultToReferences = async (image: GeneratedImage, index: number) => {
+        if (!availableReferenceSlots) {
+            showReferenceLimitWarning();
+            return;
+        }
         const stored = await uploadImage(image.dataUrl);
         setReferences((value) => [...value, { id: nanoid(), name: `result-${index + 1}.png`, type: stored.mimeType, dataUrl: stored.url, storageKey: stored.storageKey }]);
         message.success("已加入参考图");
@@ -221,12 +257,21 @@ export default function ImagePage() {
         if (payload.kind === "text") {
             setPrompt(payload.content);
         } else if (payload.kind === "image") {
+            if (!availableReferenceSlots) {
+                showReferenceLimitWarning();
+                setAssetPickerOpen(false);
+                return;
+            }
             const stored = await uploadImage(payload.dataUrl);
             setReferences((value) => [...value, { id: nanoid(), name: payload.title, type: stored.mimeType, dataUrl: stored.url, storageKey: stored.storageKey }]);
         } else {
             message.warning("生图工作台只能使用文本或图片素材");
         }
         setAssetPickerOpen(false);
+    };
+
+    const showReferenceLimitWarning = () => {
+        message.warning(capability?.supportsReferences ? `当前模型最多支持 ${capability.maxReferences} 张参考图` : "当前模型不支持参考图");
     };
 
     const createSession = () => {
@@ -279,13 +324,25 @@ export default function ImagePage() {
             openConfigDialog(true);
             return null;
         }
-        return { text, config: { ...effectiveConfig, model, count: "1" }, references: [...references] };
+        if (!capability) {
+            message.error("模型能力尚未加载");
+            return null;
+        }
+        let supportedReferences: ReferenceImage[];
+        try {
+            supportedReferences = imageReferencesForCapability(capability, references);
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : "参考图数量超出模型限制");
+            return null;
+        }
+        return { text, config: { ...effectiveConfig, model, count: "1" }, capability, references: supportedReferences };
     };
 
-    const runGenerationSlot = async (index: number, snapshot: { text: string; config: AiConfig; references: ReferenceImage[] }) => {
+    const runGenerationSlot = async (index: number, snapshot: { text: string; config: AiConfig; capability: ImageModelCapability; references: ReferenceImage[] }) => {
         const itemStartedAt = performance.now();
         try {
-            const result = snapshot.references.length ? await requestEdit(snapshot.config, snapshot.text, snapshot.references) : await requestGeneration(snapshot.config, snapshot.text);
+            const requestOptions = { imageCapability: snapshot.capability };
+            const result = snapshot.references.length ? await requestEdit(snapshot.config, snapshot.text, snapshot.references, undefined, requestOptions) : await requestGeneration(snapshot.config, snapshot.text, requestOptions);
             const image = result[0];
             if (!image) throw new Error("接口没有返回图片");
             const meta = await readImageMeta(image.dataUrl);
@@ -355,7 +412,7 @@ export default function ImagePage() {
                                 <Input.TextArea value={prompt} onChange={(event) => setPrompt(event.target.value)} rows={7} placeholder="描述画面主体、风格、构图、光线和用途" />
                             </div>
 
-                            <div className="min-w-0">
+                            {capability?.supportsReferences ? <div className="min-w-0">
                                 <div className="mb-2 flex items-center justify-between gap-3">
                                     <span className="text-base font-semibold">参考图</span>
                                     <div className="flex gap-2">
@@ -392,7 +449,7 @@ export default function ImagePage() {
                                     ))}
                                     {!references.length ? <div className="flex min-w-full items-center justify-center text-sm text-stone-500">暂无参考图</div> : null}
                                 </div>
-                            </div>
+                            </div> : null}
 
                             <div className="flex items-center justify-between rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm dark:border-stone-800 dark:bg-stone-900 sm:hidden">
                                 <span className="truncate text-stone-500 dark:text-stone-400">
@@ -404,7 +461,16 @@ export default function ImagePage() {
                             </div>
 
                             <div className="hidden gap-4 sm:grid sm:grid-cols-2">
-                                <GenerationSettings config={effectiveConfig} model={model} updateConfig={updateConfig} openConfigDialog={openConfigDialog} />
+                                <GenerationSettings
+                                    config={effectiveConfig}
+                                    model={model}
+                                    capability={capability}
+                                    capabilityLoading={capabilityQuery.isFetching}
+                                    capabilityError={capabilityQuery.error}
+                                    retryCapability={() => void capabilityQuery.refetch()}
+                                    updateConfig={updateConfig}
+                                    openConfigDialog={openConfigDialog}
+                                />
                             </div>
                         </div>
 
@@ -467,7 +533,16 @@ export default function ImagePage() {
             </Drawer>
             <Drawer title="参数" placement="bottom" size="82vh" open={settingsOpen} onClose={() => setSettingsOpen(false)}>
                 <div className="grid grid-cols-2 gap-3 pb-4">
-                    <GenerationSettings config={effectiveConfig} model={model} updateConfig={updateConfig} openConfigDialog={openConfigDialog} />
+                    <GenerationSettings
+                        config={effectiveConfig}
+                        model={model}
+                        capability={capability}
+                        capabilityLoading={capabilityQuery.isFetching}
+                        capabilityError={capabilityQuery.error}
+                        retryCapability={() => void capabilityQuery.refetch()}
+                        updateConfig={updateConfig}
+                        openConfigDialog={openConfigDialog}
+                    />
                 </div>
             </Drawer>
             <PromptSelectDialog open={promptDialogOpen} onOpenChange={setPromptDialogOpen} onSelect={setPrompt} />
@@ -479,18 +554,48 @@ export default function ImagePage() {
     );
 }
 
-function GenerationSettings({ config, model, updateConfig, openConfigDialog }: { config: AiConfig; model: string; updateConfig: UpdateAiConfig; openConfigDialog: (shouldPromptContinue?: boolean) => void }) {
+function GenerationSettings({
+    config,
+    model,
+    capability,
+    capabilityLoading,
+    capabilityError,
+    retryCapability,
+    updateConfig,
+    openConfigDialog,
+}: {
+    config: AiConfig;
+    model: string;
+    capability?: ImageModelCapability;
+    capabilityLoading: boolean;
+    capabilityError: Error | null;
+    retryCapability: () => void;
+    updateConfig: UpdateAiConfig;
+    openConfigDialog: (shouldPromptContinue?: boolean) => void;
+}) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
 
     return (
         <>
-            <label className="col-span-2 block min-w-0 sm:col-span-1">
+            <label className="col-span-2 block min-w-0">
                 <span className="mb-1.5 block text-sm font-semibold sm:mb-2 sm:text-base">模型</span>
                 <ModelPicker config={config} value={model} onChange={(value) => updateConfig("imageModel", value)} capability="image" fullWidth onMissingConfig={() => openConfigDialog(false)} />
             </label>
-            <div className="col-span-2">
-                <ImageSettingsPanel config={config} onConfigChange={(key, value) => updateConfig(key, value)} theme={theme} showTitle={false} className="space-y-4" maxCount={10} />
-            </div>
+            {capabilityLoading ? (
+                <div className="col-span-2 flex items-center gap-2 py-6 text-sm text-stone-500">
+                    <LoaderCircle className="size-4 animate-spin" />
+                    正在读取模型能力
+                </div>
+            ) : capabilityError || !capability ? (
+                <div className="col-span-2 flex items-center justify-between gap-3 rounded-lg border border-stone-200 p-3 text-sm dark:border-stone-800">
+                    <span>模型能力读取失败，暂时无法生成</span>
+                    <Button size="small" onClick={retryCapability}>重试</Button>
+                </div>
+            ) : (
+                <div className="col-span-2">
+                    <ImageSettingsPanel config={config} capability={capability} onConfigChange={(key, value) => updateConfig(key, value)} theme={theme} showTitle={false} className="space-y-4" maxCount={10} />
+                </div>
+            )}
         </>
     );
 }
