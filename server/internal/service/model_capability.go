@@ -81,7 +81,7 @@ func (s *ModelCapabilityService) Resolve(ctx context.Context, modelName string) 
 	if upstreamErr != nil {
 		resolved, err = s.databaseFallback(normalized)
 		if err != nil {
-			return ImageModelCapability{}, fmt.Errorf("读取模型能力失败: %w", upstreamErr)
+			return ImageModelCapability{}, fmt.Errorf("读取 OpenRouter 模型能力失败（%v），数据库回退失败: %w", upstreamErr, err)
 		}
 	}
 	s.storeCache(normalized, resolved)

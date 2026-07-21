@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -15,11 +17,19 @@ import (
 )
 
 type stubCapabilityRepository struct {
-	item model.ModelCapability
-	err  error
+	item             model.ModelCapability
+	err              error
+	requestedModel   *string
+	requestedAbility *string
 }
 
-func (s stubCapabilityRepository) FindModelCapability(string, string) (model.ModelCapability, error) {
+func (s stubCapabilityRepository) FindModelCapability(modelName string, ability string) (model.ModelCapability, error) {
+	if s.requestedModel != nil {
+		*s.requestedModel = modelName
+	}
+	if s.requestedAbility != nil {
+		*s.requestedAbility = ability
+	}
 	return s.item, s.err
 }
 
@@ -87,21 +97,26 @@ func TestModelCapabilitySelectsGoogleVertexAndCaches(t *testing.T) {
 }
 
 func TestModelCapabilityFallsBackToExactDatabaseModel(t *testing.T) {
+	var requestedModel, requestedAbility string
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unavailable", http.StatusBadGateway)
 	}))
 	defer upstream.Close()
 
 	resolver := newModelCapabilityService(
-		stubCapabilityRepository{item: model.ModelCapability{
-			Model:                    "google/gemini-3.1-flash-lite-image",
-			Ability:                  "image",
-			MaxReferences:            14,
-			MaxOutputs:               1,
-			SupportedRatiosJSON:      datatypes.JSON([]byte(`["1:1","16:9"]`)),
-			SupportedResolutionsJSON: datatypes.JSON([]byte(`["1K"]`)),
-			Enabled:                  true,
-		}},
+		stubCapabilityRepository{
+			item: model.ModelCapability{
+				Model:                    "google/gemini-3.1-flash-lite-image",
+				Ability:                  "image",
+				MaxReferences:            14,
+				MaxOutputs:               1,
+				SupportedRatiosJSON:      datatypes.JSON([]byte(`["1:1","16:9"]`)),
+				SupportedResolutionsJSON: datatypes.JSON([]byte(`["1K"]`)),
+				Enabled:                  true,
+			},
+			requestedModel:   &requestedModel,
+			requestedAbility: &requestedAbility,
+		},
 		upstream.Client(),
 		upstream.URL,
 		time.Now,
@@ -116,5 +131,31 @@ func TestModelCapabilityFallsBackToExactDatabaseModel(t *testing.T) {
 	}
 	if len(got.SupportedResolutions) != 1 || got.SupportedResolutions[0] != "1K" {
 		t.Fatalf("unexpected fallback resolutions: %#v", got.SupportedResolutions)
+	}
+	if requestedModel != "google/gemini-3.1-flash-lite-image" || requestedAbility != "image" {
+		t.Fatalf("unexpected database lookup: model=%q ability=%q", requestedModel, requestedAbility)
+	}
+}
+
+func TestModelCapabilityPreservesDatabaseFallbackError(t *testing.T) {
+	databaseErr := errors.New("database unavailable")
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "unavailable", http.StatusBadGateway)
+	}))
+	defer upstream.Close()
+
+	resolver := newModelCapabilityService(
+		stubCapabilityRepository{err: databaseErr},
+		upstream.Client(),
+		upstream.URL,
+		time.Now,
+	)
+
+	_, err := resolver.Resolve(context.Background(), "google/gemini-3-pro-image")
+	if !errors.Is(err, databaseErr) {
+		t.Fatalf("expected database fallback error to be unwrap-able, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "OpenRouter 返回状态 502") || !strings.Contains(err.Error(), databaseErr.Error()) {
+		t.Fatalf("expected upstream and database error context, got %v", err)
 	}
 }
