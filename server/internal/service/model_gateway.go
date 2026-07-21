@@ -3,13 +3,16 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -51,6 +54,27 @@ type ModelGatewayTestResult struct {
 	BaseURL  string `json:"baseUrl"`
 	Message  string `json:"message"`
 }
+
+type PreparedImageEditRequest struct {
+	UpstreamPath   string
+	ContentType    string
+	Body           []byte
+	ReferenceCount int
+	Estimate       EstimateRequest
+}
+
+var imageEditValueFields = []string{
+	"model",
+	"prompt",
+	"response_format",
+	"output_format",
+	"resolution",
+	"aspect_ratio",
+	"quality",
+	"size",
+}
+
+const imageMaskPromptSuffix = "参考图说明：最后一张参考图是蒙版。请仅修改蒙版透明区域，其他区域尽量保持不变。"
 
 func NewModelGatewayService(repo *repository.Repository, cfg config.Config) *ModelGatewayService {
 	return &ModelGatewayService{repo: repo, cfg: cfg, client: &http.Client{}}
@@ -147,6 +171,111 @@ func (s *ModelGatewayService) Proxy(ctx context.Context, method string, path str
 	client := *s.client
 	client.Timeout = timeout
 	return client.Do(req)
+}
+
+func (s *ModelGatewayService) PrepareImageEditRequest(contentType string, body []byte) (PreparedImageEditRequest, error) {
+	mediaType, values, err := mime.ParseMediaType(contentType)
+	if err != nil || mediaType != "multipart/form-data" || values["boundary"] == "" {
+		return PreparedImageEditRequest{}, errors.New("参考图请求格式错误")
+	}
+	form, err := multipart.NewReader(bytes.NewReader(body), values["boundary"]).ReadForm(64 << 20)
+	if err != nil {
+		return PreparedImageEditRequest{}, fmt.Errorf("解析参考图请求失败: %w", err)
+	}
+	defer form.RemoveAll()
+
+	sourceFiles := form.File["image"]
+	if len(sourceFiles) == 0 {
+		return PreparedImageEditRequest{}, errors.New("至少需要一张参考图")
+	}
+
+	payload := map[string]any{}
+	estimateParams := map[string]any{}
+	for _, key := range imageEditValueFields {
+		value := firstMultipartValue(form.Value[key])
+		if value == "" {
+			continue
+		}
+		payload[key] = value
+		estimateParams[key] = value
+	}
+	if rawCount := firstMultipartValue(form.Value["n"]); rawCount != "" {
+		count, err := strconv.Atoi(rawCount)
+		if err != nil || count < 1 {
+			return PreparedImageEditRequest{}, errors.New("生成数量格式错误")
+		}
+		payload["n"] = count
+		estimateParams["n"] = float64(count)
+	}
+
+	references := make([]map[string]any, 0, len(sourceFiles)+1)
+	for _, file := range sourceFiles {
+		reference, err := multipartImageReference(file)
+		if err != nil {
+			return PreparedImageEditRequest{}, err
+		}
+		references = append(references, reference)
+	}
+	if masks := form.File["mask"]; len(masks) > 0 {
+		reference, err := multipartImageReference(masks[0])
+		if err != nil {
+			return PreparedImageEditRequest{}, err
+		}
+		references = append(references, reference)
+		prompt, _ := payload["prompt"].(string)
+		payload["prompt"] = strings.TrimSpace(prompt) + "\n\n" + imageMaskPromptSuffix
+	}
+	payload["input_references"] = references
+	estimateParams["reference_count"] = len(references)
+
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return PreparedImageEditRequest{}, fmt.Errorf("编码参考图请求失败: %w", err)
+	}
+	modelName, _ := payload["model"].(string)
+	return PreparedImageEditRequest{
+		UpstreamPath:   "/images/generations",
+		ContentType:    "application/json",
+		Body:           encoded,
+		ReferenceCount: len(references),
+		Estimate: EstimateRequest{
+			Ability: "image_edit",
+			Model:   modelName,
+			Params:  estimateParams,
+		},
+	}, nil
+}
+
+func firstMultipartValue(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	return values[0]
+}
+
+func multipartImageReference(header *multipart.FileHeader) (map[string]any, error) {
+	file, err := header.Open()
+	if err != nil {
+		return nil, fmt.Errorf("读取参考图失败: %w", err)
+	}
+	defer file.Close()
+	data, err := io.ReadAll(file)
+	if err != nil {
+		return nil, fmt.Errorf("读取参考图失败: %w", err)
+	}
+	mimeType := strings.TrimSpace(header.Header.Get("Content-Type"))
+	if mimeType == "" || mimeType == "application/octet-stream" {
+		mimeType = http.DetectContentType(data)
+	}
+	if !strings.HasPrefix(mimeType, "image/") {
+		return nil, errors.New("参考文件必须是图片")
+	}
+	return map[string]any{
+		"type": "image_url",
+		"image_url": map[string]any{
+			"url": "data:" + mimeType + ";base64," + base64.StdEncoding.EncodeToString(data),
+		},
+	}, nil
 }
 
 func (s *ModelGatewayService) ExtractEstimateRequest(ability string, contentType string, body []byte) EstimateRequest {
