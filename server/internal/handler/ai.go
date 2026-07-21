@@ -23,40 +23,71 @@ func NewAIHandler(billing *service.BillingService, gateway *service.ModelGateway
 
 func (h *AIHandler) ProxyPost(ability string, upstreamPath string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		user := middleware.CurrentUser(c)
 		body, err := io.ReadAll(c.Request.Body)
 		if err != nil {
 			httpx.Fail(c, http.StatusBadRequest, "读取请求失败")
 			return
 		}
-		estimateReq := h.gateway.ExtractEstimateRequest(ability, c.GetHeader("Content-Type"), body)
-		usage, err := h.billing.Reserve(c.Request.Context(), user.ID, estimateReq)
-		if err != nil {
-			httpx.Fail(c, http.StatusPaymentRequired, err.Error())
-			return
-		}
-		resp, err := h.gateway.Proxy(c.Request.Context(), http.MethodPost, upstreamPath, c.Request.Header, body)
-		if err != nil {
-			_ = h.billing.Fail(c.Request.Context(), usage.ID, err.Error())
-			httpx.Fail(c, http.StatusBadGateway, err.Error())
-			return
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode >= 400 {
-			payload, _ := io.ReadAll(resp.Body)
-			_ = h.billing.Fail(c.Request.Context(), usage.ID, string(payload))
-			copyResponseHeaders(c, resp.Header)
-			c.Data(resp.StatusCode, resp.Header.Get("Content-Type"), payload)
-			return
-		}
-		copyResponseHeaders(c, resp.Header)
-		c.Status(resp.StatusCode)
-		if _, err := io.Copy(c.Writer, resp.Body); err != nil {
-			_ = h.billing.Fail(c.Request.Context(), usage.ID, err.Error())
-			return
-		}
-		_ = h.billing.Settle(c.Request.Context(), usage.ID, usage.EstimateCredits)
+		h.proxyPost(c, upstreamPath, c.Request.Header, body, h.gateway.ExtractEstimateRequest(ability, c.GetHeader("Content-Type"), body))
 	}
+}
+
+func (h *AIHandler) ProxyImageEdit() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		body, err := io.ReadAll(c.Request.Body)
+		if err != nil {
+			httpx.Fail(c, http.StatusBadRequest, "读取请求失败")
+			return
+		}
+		prepared, err := h.gateway.PrepareImageEditRequest(c.GetHeader("Content-Type"), body)
+		if err != nil {
+			httpx.Fail(c, http.StatusBadRequest, err.Error())
+			return
+		}
+		h.proxyPost(c, prepared.UpstreamPath, imageEditGatewayHeaders(c.Request.Header, prepared.ContentType), prepared.Body, prepared.Estimate)
+	}
+}
+
+func (h *AIHandler) proxyPost(c *gin.Context, upstreamPath string, headers http.Header, body []byte, estimateReq service.EstimateRequest) {
+	user := middleware.CurrentUser(c)
+	usage, err := h.billing.Reserve(c.Request.Context(), user.ID, estimateReq)
+	if err != nil {
+		httpx.Fail(c, http.StatusPaymentRequired, err.Error())
+		return
+	}
+	resp, err := h.gateway.Proxy(c.Request.Context(), http.MethodPost, upstreamPath, headers, body)
+	if err != nil {
+		_ = h.billing.Fail(c.Request.Context(), usage.ID, err.Error())
+		httpx.Fail(c, http.StatusBadGateway, err.Error())
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		payload, _ := io.ReadAll(resp.Body)
+		_ = h.billing.Fail(c.Request.Context(), usage.ID, string(payload))
+		copyResponseHeaders(c, resp.Header)
+		c.Data(resp.StatusCode, resp.Header.Get("Content-Type"), payload)
+		return
+	}
+	copyResponseHeaders(c, resp.Header)
+	c.Status(resp.StatusCode)
+	if _, err := io.Copy(c.Writer, resp.Body); err != nil {
+		_ = h.billing.Fail(c.Request.Context(), usage.ID, err.Error())
+		return
+	}
+	_ = h.billing.Settle(c.Request.Context(), usage.ID, usage.EstimateCredits)
+}
+
+func imageEditGatewayHeaders(source http.Header, contentType string) http.Header {
+	headers := make(http.Header, len(source))
+	for key, values := range source {
+		for _, value := range values {
+			headers.Add(key, value)
+		}
+	}
+	headers.Del("Content-Length")
+	headers.Set("Content-Type", contentType)
+	return headers
 }
 
 func (h *AIHandler) ProxyGet(upstreamPathPrefix string) gin.HandlerFunc {
