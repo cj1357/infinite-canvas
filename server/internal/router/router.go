@@ -29,6 +29,7 @@ func New(repo *repository.Repository, store storage.Store, cfg config.Config) *g
 	referenceService := service.NewReferenceService(repo)
 	creativeAssetService := service.NewCreativeAssetService(repo)
 	creativeAgentService := service.NewCreativeAgentService(repo)
+	modelCapabilityService := service.NewModelCapabilityService(repo)
 	gatewayService := service.NewModelGatewayService(repo, cfg)
 	generationService := service.NewGenerationService(repo, billingService, referenceService, gatewayService, mediaService)
 	promptTemplateService := service.NewPromptTemplateService(repo)
@@ -43,6 +44,7 @@ func New(repo *repository.Repository, store storage.Store, cfg config.Config) *g
 	creativeHandler := handler.NewCreativeHandler(referenceService, generationService, creativeAssetService)
 	agentHandler := handler.NewAgentHandler(creativeAgentService)
 	billingHandler := handler.NewBillingHandler(billingService)
+	modelCapabilityHandler := handler.NewModelCapabilityHandler(modelCapabilityService)
 	adminHandler := handler.NewAdminHandler(adminService)
 	aiHandler := handler.NewAIHandler(billingService, gatewayService)
 	authMiddleware := middleware.NewAuthMiddleware(authService, cfg.CookieName)
@@ -64,6 +66,7 @@ func New(repo *repository.Repository, store storage.Store, cfg config.Config) *g
 	protected.POST("/billing/estimate", billingHandler.Estimate)
 	protected.GET("/usage-requests", billingHandler.ListUsage)
 	protected.GET("/credit-ledger", billingHandler.ListLedger)
+	protected.GET("/model-capabilities/resolve", modelCapabilityHandler.Resolve)
 
 	protected.GET("/canvas-projects", dataHandler.ListCanvasProjects)
 	protected.POST("/canvas-projects", dataHandler.CreateCanvasProject)

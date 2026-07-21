@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"encoding/json"
 	"errors"
 
 	"infinite-canvas/server/internal/config"
@@ -9,6 +10,7 @@ import (
 	"gorm.io/datatypes"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Repository struct {
@@ -60,24 +62,50 @@ func AutoMigrate(db *gorm.DB) error {
 }
 
 func seedModelCapabilities(db *gorm.DB) error {
-	var count int64
-	if err := db.Model(&model.ModelCapability{}).Count(&count).Error; err != nil {
-		return err
+	items := []model.ModelCapability{
+		{
+			Model: "default", Ability: "image", ModelFamily: "generic",
+			DisplayNameJSON: datatypes.JSON([]byte(`{"zh-CN":"默认模型","en-US":"Default model"}`)),
+			MaxReferences:   4, MaxOutputs: 4,
+			SupportedRatiosJSON:      datatypes.JSON([]byte(`["1:1","3:4","4:3","9:16","16:9"]`)),
+			SupportedResolutionsJSON: datatypes.JSON([]byte(`["1024x1024"]`)),
+			Enabled:                  true,
+			RecommendedRolesJSON:     datatypes.JSON([]byte(`["subject","style","composition","element"]`)),
+			MetadataJSON:             datatypes.JSON([]byte(`{}`)),
+		},
+		imageCapabilitySeed(
+			"google/gemini-3.1-flash-lite-image",
+			[]string{"1K"},
+			[]string{"1:1", "1:4", "1:8", "2:3", "3:2", "3:4", "4:1", "4:3", "4:5", "5:4", "8:1", "9:16", "16:9", "21:9"},
+		),
+		imageCapabilitySeed(
+			"google/gemini-3.1-flash-image",
+			[]string{"512", "1K", "2K", "4K"},
+			[]string{"1:1", "1:4", "1:8", "2:3", "3:2", "3:4", "4:1", "4:3", "4:5", "5:4", "8:1", "9:16", "16:9", "21:9"},
+		),
+		imageCapabilitySeed(
+			"google/gemini-3-pro-image",
+			[]string{"1K", "2K"},
+			[]string{"1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"},
+		),
 	}
-	if count > 0 {
-		return nil
-	}
-	return db.Create(&model.ModelCapability{
-		Model:                     "default",
-		DisplayNameJSON:           datatypes.JSON([]byte(`{"zh-CN":"默认模型","en-US":"Default model"}`)),
-		Ability:                   "image",
-		ModelFamily:               "generic",
-		MaxReferences:             4,
-		MaxOutputs:                4,
-		SupportedRatiosJSON:      datatypes.JSON([]byte(`["1:1","3:4","4:3","9:16","16:9"]`)),
-		SupportedResolutionsJSON: datatypes.JSON([]byte(`["1024x1024"]`)),
+	return db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "model"}, {Name: "ability"}},
+		DoNothing: true,
+	}).Create(&items).Error
+}
+
+func imageCapabilitySeed(modelName string, resolutions []string, ratios []string) model.ModelCapability {
+	resolutionsJSON, _ := json.Marshal(resolutions)
+	ratiosJSON, _ := json.Marshal(ratios)
+	return model.ModelCapability{
+		Model: modelName, Ability: "image", ModelFamily: "gemini-image",
+		DisplayNameJSON: datatypes.JSON([]byte(`{}`)),
+		MaxReferences:   14, MaxOutputs: 1,
+		SupportedRatiosJSON:      datatypes.JSON(ratiosJSON),
+		SupportedResolutionsJSON: datatypes.JSON(resolutionsJSON),
 		Enabled:                  true,
 		RecommendedRolesJSON:     datatypes.JSON([]byte(`["subject","style","composition","element"]`)),
-		MetadataJSON:             datatypes.JSON([]byte(`{}`)),
-	}).Error
+		MetadataJSON:             datatypes.JSON([]byte(`{"provider":"google-vertex"}`)),
+	}
 }
