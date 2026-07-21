@@ -9,6 +9,30 @@ export type ImageModelCapability = {
     source: "openrouter" | "cache" | "database";
 };
 
+type ImageCapabilityRuntimeState = {
+    capability?: ImageModelCapability;
+    isFetching: boolean;
+    error: unknown;
+};
+
+export function isImageModelCapabilityReady({ capability, isFetching, error }: ImageCapabilityRuntimeState) {
+    return Boolean(capability && !isFetching && !error);
+}
+
+export function mergeImageReferencesForCapability<T>({
+    capability,
+    isFetching,
+    error,
+    current,
+    incoming,
+    expectedModel,
+    currentModel,
+}: ImageCapabilityRuntimeState & { current: T[]; incoming: T[]; expectedModel: string; currentModel: string }) {
+    if (!isImageModelCapabilityReady({ capability, isFetching, error }) || !capability?.supportsReferences || expectedModel !== currentModel || capability.model !== currentModel) return current;
+    const additions = incoming.slice(0, Math.max(0, capability.maxReferences - current.length));
+    return additions.length ? [...current, ...additions] : current;
+}
+
 export function normalizeImageCapabilitySelection(capability: ImageModelCapability, resolution: string, aspectRatio: string) {
     return {
         resolution: supportedValue(capability.supportedResolutions, resolution, "1K"),

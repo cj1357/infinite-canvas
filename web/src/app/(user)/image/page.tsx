@@ -12,7 +12,7 @@ import { ModelPicker } from "@/components/model-picker";
 import { PromptSelectDialog } from "@/components/prompts/prompt-select-dialog";
 import { AssetPickerModal, type InsertAssetPayload } from "@/app/(user)/canvas/components/asset-picker-modal";
 import { canvasThemes } from "@/lib/canvas-theme";
-import { imageReferencesForCapability, normalizeImageCapabilitySelection, type ImageModelCapability } from "@/lib/image-model-capability";
+import { imageReferencesForCapability, isImageModelCapabilityReady, mergeImageReferencesForCapability, normalizeImageCapabilitySelection, type ImageModelCapability } from "@/lib/image-model-capability";
 import { imageReferenceLabel } from "@/lib/image-reference-prompt";
 import { modelOptionLabel, modelOptionName, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
 import { useThemeStore } from "@/stores/use-theme-store";
@@ -104,7 +104,7 @@ export default function ImagePage() {
         staleTime: 10 * 60 * 1000,
     });
     const capability = capabilityQuery.data;
-    const capabilityReady = Boolean(capability && !capabilityQuery.isFetching && !capabilityQuery.error);
+    const capabilityReady = isImageModelCapabilityReady({ capability, isFetching: capabilityQuery.isFetching, error: capabilityQuery.error });
     const canGenerate = Boolean(prompt.trim() && capabilityReady);
     const generationCount = Math.max(1, Math.min(10, Number(config.count) || 1));
     const availableReferenceSlots = capabilityReady && capability?.supportsReferences ? Math.max(0, capability.maxReferences - references.length) : 0;
@@ -135,19 +135,15 @@ export default function ImagePage() {
             const currentConfig = useConfigStore.getState().config;
             const currentModel = modelOptionName(currentConfig.imageModel || currentConfig.model);
             const currentCapabilityState = queryClient.getQueryState<ImageModelCapability>(["image-model-capability", currentModel]);
-            const currentCapability = currentCapabilityState?.data;
-            if (
-                currentModel !== expectedModel ||
-                currentCapabilityState?.fetchStatus !== "idle" ||
-                currentCapabilityState.error ||
-                !currentCapability?.supportsReferences ||
-                currentCapability.model !== currentModel
-            ) {
-                return prev;
-            }
-            const availableSlots = Math.max(0, currentCapability.maxReferences - prev.length);
-            const additions = nextReferences.slice(0, availableSlots);
-            return additions.length ? [...prev, ...additions] : prev;
+            return mergeImageReferencesForCapability({
+                capability: currentCapabilityState?.data,
+                isFetching: currentCapabilityState?.fetchStatus !== "idle",
+                error: currentCapabilityState?.error,
+                current: prev,
+                incoming: nextReferences,
+                expectedModel,
+                currentModel,
+            });
         });
     };
 
