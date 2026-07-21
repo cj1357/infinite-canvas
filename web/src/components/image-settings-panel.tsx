@@ -5,7 +5,7 @@ import { ConfigProvider, Switch } from "antd";
 
 import { type CanvasTheme } from "@/lib/canvas-theme";
 import { getGoogleImageResolutionOptions, resolveGoogleImageAspectRatio, resolveGoogleImageRequestOptions } from "@/lib/image-generation-options";
-import type { ImageModelCapability } from "@/lib/image-model-capability";
+import { imageCapabilityOptions, type ImageModelCapability } from "@/lib/image-model-capability";
 import type { AiConfig } from "@/stores/use-config-store";
 
 const qualityOptions = [
@@ -49,8 +49,9 @@ export function ImageSettingsPanel({ config, capability, onConfigChange, theme, 
     const googleOptions = resolveGoogleImageRequestOptions(config.imageModel || config.model, config.quality, config.size);
     const isGoogleImage = googleResolutions !== null;
     const capabilityMode = Boolean(capability);
-    const visibleQualityOptions = capability ? capability.supportedResolutions.map((value) => ({ value, label: value })) : isGoogleImage ? (googleResolutions || []).map((value) => ({ value, label: value })) : qualityOptions;
-    const visibleAspectOptions = capability ? capability.supportedRatios.map(capabilityAspectOption) : isGoogleImage ? aspectOptions.filter((item) => !item.size) : aspectOptions;
+    const { supportedResolutions, supportedRatios } = imageCapabilityOptions(capability);
+    const visibleQualityOptions = capability ? supportedResolutions.map((value) => ({ value, label: value })) : isGoogleImage ? (googleResolutions || []).map((value) => ({ value, label: value })) : qualityOptions;
+    const visibleAspectOptions = capability ? supportedRatios.map(capabilityAspectOption) : isGoogleImage ? aspectOptions.filter((item) => !item.size) : aspectOptions;
     const quality = capability ? config.quality : googleOptions?.resolution || config.quality || "auto";
     const count = Math.max(1, Math.min(maxCount, Math.floor(Math.abs(Number(config.count)) || 1)));
     const activeSize = config.size || "auto";
@@ -115,7 +116,7 @@ export function ImageSettingsPanel({ config, capability, onConfigChange, theme, 
                         <DimensionInput prefix="H" value={dimensions.height} disabled={activeSize === "auto"} theme={theme} alignToStep={snapDimensionToStep} onChange={(value) => updateDimension("height", value)} />
                     </div>
                 </div> : null}
-                <div className="space-y-2.5">
+                {visibleAspectOptions.length ? <div className="space-y-2.5">
                     <SettingTitle color={theme.node.muted}>宽高比</SettingTitle>
                     <div className="grid grid-cols-4 gap-2.5">
                         {visibleAspectOptions.map((item) => (
@@ -132,7 +133,7 @@ export function ImageSettingsPanel({ config, capability, onConfigChange, theme, 
                             </button>
                         ))}
                     </div>
-                </div>
+                </div> : null}
                 <div className="space-y-2.5">
                     <SettingTitle color={theme.node.muted}>生成张数</SettingTitle>
                     <div className="grid grid-cols-4 gap-2.5">

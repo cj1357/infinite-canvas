@@ -19,6 +19,24 @@ export function isImageModelCapabilityReady({ capability, isFetching, error }: I
     return Boolean(capability && !isFetching && !error);
 }
 
+export function imageCapabilityOptions(capability?: ImageModelCapability) {
+    return {
+        supportedRatios: Array.isArray(capability?.supportedRatios) ? capability.supportedRatios : [],
+        supportedResolutions: Array.isArray(capability?.supportedResolutions) ? capability.supportedResolutions : [],
+    };
+}
+
+export function resolveImageReferenceAvailability({ capability, isFetching, error, currentCount }: ImageCapabilityRuntimeState & { currentCount: number }) {
+    const supportsReferences = Boolean(capability?.supportsReferences);
+    const maxReferences = supportsReferences ? Math.max(0, Number(capability?.maxReferences) || 0) : 0;
+    const availableReferenceSlots = Math.max(0, maxReferences - Math.max(0, Number(currentCount) || 0));
+    return {
+        supportsReferences,
+        availableReferenceSlots,
+        canAddReference: isImageModelCapabilityReady({ capability, isFetching, error }) && availableReferenceSlots > 0,
+    };
+}
+
 export function mergeImageReferencesForCapability<T>({
     capability,
     isFetching,
@@ -34,16 +52,18 @@ export function mergeImageReferencesForCapability<T>({
 }
 
 export function normalizeImageCapabilitySelection(capability: ImageModelCapability, resolution: string, aspectRatio: string) {
+    const { supportedResolutions, supportedRatios } = imageCapabilityOptions(capability);
     return {
-        resolution: supportedValue(capability.supportedResolutions, resolution, "1K"),
-        aspectRatio: supportedValue(capability.supportedRatios, aspectRatio, "1:1"),
+        resolution: supportedValue(supportedResolutions, resolution, "1K"),
+        aspectRatio: supportedValue(supportedRatios, aspectRatio, "1:1"),
     };
 }
 
 export function resolveImageCapabilityRequestOptions(capability: ImageModelCapability, resolution: string, aspectRatio: string) {
+    const { supportedResolutions, supportedRatios } = imageCapabilityOptions(capability);
     return {
-        ...(capability.supportedResolutions.includes(resolution) ? { resolution } : {}),
-        ...(capability.supportedRatios.includes(aspectRatio) ? { aspect_ratio: aspectRatio } : {}),
+        ...(supportedResolutions.includes(resolution) ? { resolution } : {}),
+        ...(supportedRatios.includes(aspectRatio) ? { aspect_ratio: aspectRatio } : {}),
     };
 }
 

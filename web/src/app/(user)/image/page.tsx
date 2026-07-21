@@ -12,7 +12,7 @@ import { ModelPicker } from "@/components/model-picker";
 import { PromptSelectDialog } from "@/components/prompts/prompt-select-dialog";
 import { AssetPickerModal, type InsertAssetPayload } from "@/app/(user)/canvas/components/asset-picker-modal";
 import { canvasThemes } from "@/lib/canvas-theme";
-import { imageReferencesForCapability, isImageModelCapabilityReady, mergeImageReferencesForCapability, normalizeImageCapabilitySelection, type ImageModelCapability } from "@/lib/image-model-capability";
+import { imageReferencesForCapability, isImageModelCapabilityReady, mergeImageReferencesForCapability, normalizeImageCapabilitySelection, resolveImageReferenceAvailability, type ImageModelCapability } from "@/lib/image-model-capability";
 import { imageReferenceLabel } from "@/lib/image-reference-prompt";
 import { modelOptionLabel, modelOptionName, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
 import { useThemeStore } from "@/stores/use-theme-store";
@@ -107,7 +107,9 @@ export default function ImagePage() {
     const capabilityReady = isImageModelCapabilityReady({ capability, isFetching: capabilityQuery.isFetching, error: capabilityQuery.error });
     const canGenerate = Boolean(prompt.trim() && capabilityReady);
     const generationCount = Math.max(1, Math.min(10, Number(config.count) || 1));
-    const availableReferenceSlots = capabilityReady && capability?.supportsReferences ? Math.max(0, capability.maxReferences - references.length) : 0;
+    const { supportsReferences, availableReferenceSlots, canAddReference } = resolveImageReferenceAvailability({ capability, isFetching: capabilityQuery.isFetching, error: capabilityQuery.error, currentCount: references.length });
+    const referenceLimitText = `当前模型最多支持 ${Math.max(0, Number(capability?.maxReferences) || 0)} 张参考图`;
+    const referenceDisabledHint = supportsReferences && !availableReferenceSlots ? referenceLimitText : capabilityQuery.error ? "模型能力读取失败" : !capabilityReady ? "模型能力尚未加载" : "当前模型不支持参考图";
 
     useEffect(() => {
         if (!capability) return;
@@ -117,7 +119,7 @@ export default function ImagePage() {
     }, [capability, config.quality, config.size, updateConfig]);
 
     useEffect(() => {
-        if (capability && !capability.supportsReferences && references.length) message.warning("当前模型不支持参考图，生成时将忽略已选择的图片");
+        if (capability && !supportsReferences && references.length) message.warning("当前模型不支持参考图，生成时将忽略已选择的图片");
     }, [capability?.model]);
 
     useEffect(() => {
@@ -148,7 +150,7 @@ export default function ImagePage() {
     };
 
     const addReferences = async (files?: FileList | null) => {
-        if (!availableReferenceSlots) {
+        if (!canAddReference) {
             showReferenceLimitWarning();
             return;
         }
@@ -166,7 +168,7 @@ export default function ImagePage() {
     };
 
     const addReferencesFromClipboard = async () => {
-        if (!availableReferenceSlots) {
+        if (!canAddReference) {
             showReferenceLimitWarning();
             return;
         }
@@ -252,7 +254,7 @@ export default function ImagePage() {
     };
 
     const addResultToReferences = async (image: GeneratedImage, index: number) => {
-        if (!availableReferenceSlots) {
+        if (!canAddReference) {
             showReferenceLimitWarning();
             return;
         }
@@ -280,7 +282,7 @@ export default function ImagePage() {
         if (payload.kind === "text") {
             setPrompt(payload.content);
         } else if (payload.kind === "image") {
-            if (!availableReferenceSlots) {
+            if (!canAddReference) {
                 showReferenceLimitWarning();
                 setAssetPickerOpen(false);
                 return;
@@ -295,7 +297,7 @@ export default function ImagePage() {
     };
 
     const showReferenceLimitWarning = () => {
-        message.warning(capability?.supportsReferences ? `当前模型最多支持 ${capability.maxReferences} 张参考图` : "当前模型不支持参考图");
+        message.warning(referenceDisabledHint);
     };
 
     const createSession = () => {
@@ -436,16 +438,24 @@ export default function ImagePage() {
                                 <Input.TextArea value={prompt} onChange={(event) => setPrompt(event.target.value)} rows={7} placeholder="描述画面主体、风格、构图、光线和用途" />
                             </div>
 
-                            {capability?.supportsReferences ? <div className="min-w-0">
+                            {supportsReferences ? <div className="min-w-0">
                                 <div className="mb-2 flex items-center justify-between gap-3">
                                     <span className="text-base font-semibold">参考图</span>
                                     <div className="flex gap-2">
-                                        <Button size="small" icon={<ClipboardPaste className="size-3.5" />} onClick={() => void addReferencesFromClipboard()}>
-                                            剪切板
-                                        </Button>
-                                        <Button size="small" icon={<Upload className="size-3.5" />} onClick={() => fileInputRef.current?.click()}>
-                                            上传
-                                        </Button>
+                                        <Tooltip title={canAddReference ? "" : referenceDisabledHint}>
+                                            <span>
+                                                <Button size="small" disabled={!canAddReference} icon={<ClipboardPaste className="size-3.5" />} onClick={() => void addReferencesFromClipboard()}>
+                                                    剪切板
+                                                </Button>
+                                            </span>
+                                        </Tooltip>
+                                        <Tooltip title={canAddReference ? "" : referenceDisabledHint}>
+                                            <span>
+                                                <Button size="small" disabled={!canAddReference} icon={<Upload className="size-3.5" />} onClick={() => fileInputRef.current?.click()}>
+                                                    上传
+                                                </Button>
+                                            </span>
+                                        </Tooltip>
                                     </div>
                                 </div>
                                 <div
@@ -516,7 +526,7 @@ export default function ImagePage() {
                             <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
                                 {results.map((result, index) =>
                                     result.status === "success" && result.image ? (
-                                        <ResultImageCard key={result.id} image={result.image} index={index} onEdit={addResultToReferences} onDownload={downloadImage} onSaveAsset={saveResultToAssets} />
+                                        <ResultImageCard key={result.id} image={result.image} index={index} supportsReferences={supportsReferences} canAddReference={canAddReference} referenceDisabledHint={referenceDisabledHint} onEdit={addResultToReferences} onDownload={downloadImage} onSaveAsset={saveResultToAssets} />
                                     ) : result.status === "failed" ? (
                                         <FailedImageCard key={result.id} error={result.error || "生成失败"} onRetry={() => retryResult(index)} />
                                     ) : (
@@ -538,6 +548,7 @@ export default function ImagePage() {
                 type="file"
                 accept="image/*"
                 multiple
+                disabled={!canAddReference}
                 className="hidden"
                 onChange={(event) => {
                     void addReferences(event.target.files);
@@ -627,12 +638,18 @@ function GenerationSettings({
 function ResultImageCard({
     image,
     index,
+    supportsReferences,
+    canAddReference,
+    referenceDisabledHint,
     onEdit,
     onDownload,
     onSaveAsset,
 }: {
     image: GeneratedImage;
     index: number;
+    supportsReferences: boolean;
+    canAddReference: boolean;
+    referenceDisabledHint: string;
     onEdit: (image: GeneratedImage, index: number) => void;
     onDownload: (image: GeneratedImage, index: number) => void;
     onSaveAsset: (image: GeneratedImage, index: number) => void;
@@ -648,17 +665,21 @@ function ResultImageCard({
                     <span>{formatBytes(image.bytes)}</span>
                     <span>{formatDuration(image.durationMs)}</span>
                 </div>
-                <div className="grid min-w-0 grid-cols-3 gap-2">
+                <div className={`grid min-w-0 gap-2 ${supportsReferences ? "grid-cols-3" : "grid-cols-2"}`}>
                     <Tooltip title="添加到素材">
                         <Button className={RESULT_ACTION_BUTTON_CLASS} size="small" icon={<FolderPlus className="size-3.5" />} onClick={() => void onSaveAsset(image, index)}>
                             添加到素材
                         </Button>
                     </Tooltip>
-                    <Tooltip title="加入参考图">
-                        <Button className={RESULT_ACTION_BUTTON_CLASS} size="small" icon={<PenLine className="size-3.5" />} onClick={() => void onEdit(image, index)}>
-                            加入参考图
-                        </Button>
-                    </Tooltip>
+                    {supportsReferences ? (
+                        <Tooltip title={canAddReference ? "加入参考图" : referenceDisabledHint}>
+                            <span className="grid min-w-0">
+                                <Button className={RESULT_ACTION_BUTTON_CLASS} size="small" disabled={!canAddReference} icon={<PenLine className="size-3.5" />} onClick={() => void onEdit(image, index)}>
+                                    加入参考图
+                                </Button>
+                            </span>
+                        </Tooltip>
+                    ) : null}
                     <Tooltip title="下载">
                         <Button className={RESULT_ACTION_BUTTON_CLASS} size="small" icon={<Download className="size-3.5" />} onClick={() => onDownload(image, index)}>
                             下载

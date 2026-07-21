@@ -1,6 +1,14 @@
 import { describe, expect, test } from "bun:test";
 
-import { isImageModelCapabilityReady, mergeImageReferencesForCapability, type ImageModelCapability } from "../src/lib/image-model-capability";
+import {
+    imageCapabilityOptions,
+    isImageModelCapabilityReady,
+    mergeImageReferencesForCapability,
+    normalizeImageCapabilitySelection,
+    resolveImageCapabilityRequestOptions,
+    resolveImageReferenceAvailability,
+    type ImageModelCapability,
+} from "../src/lib/image-model-capability";
 
 const capability: ImageModelCapability = {
     model: "google/gemini-3-pro-image",
@@ -14,6 +22,18 @@ const capability: ImageModelCapability = {
 };
 
 describe("image workbench capability guards", () => {
+    for (const item of [
+        { name: "null", capability: JSON.parse(JSON.stringify({ ...capability, supportedRatios: null, supportedResolutions: null })) },
+        { name: "undefined", capability: JSON.parse(JSON.stringify({ ...capability, supportedRatios: undefined, supportedResolutions: undefined })) },
+    ]) {
+        test(`normalizes runtime ${item.name} option arrays`, () => {
+            expect(() => normalizeImageCapabilitySelection(item.capability, "1K", "1:1")).not.toThrow();
+            expect(normalizeImageCapabilitySelection(item.capability, "1K", "1:1")).toEqual({ resolution: "", aspectRatio: "" });
+            expect(resolveImageCapabilityRequestOptions(item.capability, "1K", "1:1")).toEqual({});
+            expect(imageCapabilityOptions(item.capability)).toEqual({ supportedRatios: [], supportedResolutions: [] });
+        });
+    }
+
     for (const item of [
         { name: "accepts an idle successful capability", state: { capability, isFetching: false, error: null }, expected: true },
         { name: "rejects a capability while fetching", state: { capability, isFetching: true, error: null }, expected: false },
@@ -66,4 +86,16 @@ describe("image workbench capability guards", () => {
         expect(second.map((item) => item.id)).toEqual(["a", "b"]);
         expect(second).toHaveLength(capability.maxReferences);
     });
+
+    for (const item of [
+        { name: "loading", state: { capability, isFetching: true, error: null, currentCount: 0 }, expected: { supportsReferences: true, availableReferenceSlots: 2, canAddReference: false } },
+        { name: "error", state: { capability, isFetching: false, error: new Error("failed"), currentCount: 0 }, expected: { supportsReferences: true, availableReferenceSlots: 2, canAddReference: false } },
+        { name: "unsupported", state: { capability: { ...capability, supportsReferences: false }, isFetching: false, error: null, currentCount: 0 }, expected: { supportsReferences: false, availableReferenceSlots: 0, canAddReference: false } },
+        { name: "available", state: { capability, isFetching: false, error: null, currentCount: 1 }, expected: { supportsReferences: true, availableReferenceSlots: 1, canAddReference: true } },
+        { name: "full", state: { capability, isFetching: false, error: null, currentCount: 2 }, expected: { supportsReferences: true, availableReferenceSlots: 0, canAddReference: false } },
+    ]) {
+        test(`derives ${item.name} reference availability`, () => {
+            expect(resolveImageReferenceAvailability(item.state)).toEqual(item.expected);
+        });
+    }
 });
