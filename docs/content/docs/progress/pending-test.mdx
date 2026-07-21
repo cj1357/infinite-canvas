@@ -44,3 +44,4 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 本地调试优化：在前端 `package.json` 中新增 `dev:3006` 调试脚本，并在 `web/` 下配置 `.env.local` 代理至 `http://localhost:8085` 后端服务，方便本地并发调试。
 - 视频模型映射更新：在前端配置 `use-config-store.ts` 中，将 Google Veo 视频模型由原来的 `google/veo-3.1`, `google/veo-3.1-fast`, `google/veo-3.1-lite` 调整为更准确 of Vertex AI 官方 ID（且由于 New API 渠道限制，去除了 `google/` 前缀）：`veo-3.1-generate-001`、`veo-3.1-fast-generate-001` 以及 `veo-3.1-lite-generate-001`。
 - 视频模块移除 (方案 B)：物理删除了“视频创作台”页面及相关的 WebDAV 同步服务；在全局导航、首页快速入口中移除了视频页面入口。在画布配置节点中屏蔽了“视频”生成模式，在连线生成菜单中排除了“视频生成”节点类型，在拖拽和上传中限制视频文件；同时在 Go 后端屏蔽了 `/ai/videos` 网关代理路由。旧画布视频节点在前端保持只读播放兼容，规避数据损坏与系统崩溃。
+- OpenRouter 参考图统一转发：生图工作台和画布的参考图／蒙版请求仍调用本项目 `/api/server/ai/images/edits`，后端会把 multipart 图片转换为 `input_references` JSON 并经 NewAPI `/images/generations` 发送；需测试工作台单图、画布单图／多图／重试和近似蒙版编辑，确认普通无参考图生图不受影响。
