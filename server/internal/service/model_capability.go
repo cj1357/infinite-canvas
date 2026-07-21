@@ -133,6 +133,12 @@ func selectGoogleVertexEndpoint(items []openRouterImageEndpoint) (openRouterImag
 func capabilityFromEndpoint(modelName string, endpoint openRouterImageEndpoint) ImageModelCapability {
 	resolutions := endpoint.SupportedParameters["resolution"].Values
 	ratios := endpoint.SupportedParameters["aspect_ratio"].Values
+	if resolutions == nil {
+		resolutions = []string{}
+	}
+	if ratios == nil {
+		ratios = []string{}
+	}
 	references := endpoint.SupportedParameters["input_references"]
 	outputs := endpoint.SupportedParameters["n"]
 	provider := endpoint.ProviderTag
@@ -162,6 +168,12 @@ func (s *ModelCapabilityService) databaseFallback(modelName string) (ImageModelC
 	}
 	if err := json.Unmarshal(item.SupportedResolutionsJSON, &resolutions); err != nil {
 		return ImageModelCapability{}, err
+	}
+	if ratios == nil {
+		ratios = []string{}
+	}
+	if resolutions == nil {
+		resolutions = []string{}
 	}
 	return ImageModelCapability{
 		Model:                modelName,

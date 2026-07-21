@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -157,5 +158,56 @@ func TestModelCapabilityPreservesDatabaseFallbackError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "OpenRouter 返回状态 502") || !strings.Contains(err.Error(), databaseErr.Error()) {
 		t.Fatalf("expected upstream and database error context, got %v", err)
+	}
+}
+
+func TestModelCapabilityEndpointMissingArraysMarshalAsEmpty(t *testing.T) {
+	got := capabilityFromEndpoint("google/gemini-3-pro-image", openRouterImageEndpoint{
+		ProviderTag: "google-vertex/global",
+	})
+
+	if got.SupportedRatios == nil || len(got.SupportedRatios) != 0 {
+		t.Fatalf("expected non-nil empty ratios, got %#v", got.SupportedRatios)
+	}
+	if got.SupportedResolutions == nil || len(got.SupportedResolutions) != 0 {
+		t.Fatalf("expected non-nil empty resolutions, got %#v", got.SupportedResolutions)
+	}
+	payload, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("marshal capability: %v", err)
+	}
+	if !strings.Contains(string(payload), `"supportedRatios":[]`) || !strings.Contains(string(payload), `"supportedResolutions":[]`) {
+		t.Fatalf("expected empty arrays in JSON, got %s", payload)
+	}
+}
+
+func TestModelCapabilityDatabaseFallbackNormalizesMissingArrays(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "unavailable", http.StatusBadGateway)
+	}))
+	defer upstream.Close()
+
+	resolver := newModelCapabilityService(
+		stubCapabilityRepository{item: model.ModelCapability{
+			Model:                    "google/gemini-3-pro-image",
+			Ability:                  "image",
+			SupportedRatiosJSON:      datatypes.JSON([]byte(`null`)),
+			SupportedResolutionsJSON: datatypes.JSON([]byte(`null`)),
+			Enabled:                  true,
+		}},
+		upstream.Client(),
+		upstream.URL,
+		time.Now,
+	)
+
+	got, err := resolver.Resolve(context.Background(), "google/gemini-3-pro-image")
+	if err != nil {
+		t.Fatalf("resolve fallback: %v", err)
+	}
+	if got.SupportedRatios == nil || len(got.SupportedRatios) != 0 {
+		t.Fatalf("expected non-nil empty fallback ratios, got %#v", got.SupportedRatios)
+	}
+	if got.SupportedResolutions == nil || len(got.SupportedResolutions) != 0 {
+		t.Fatalf("expected non-nil empty fallback resolutions, got %#v", got.SupportedResolutions)
 	}
 }
