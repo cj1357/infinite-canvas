@@ -1,72 +1,72 @@
-# OpenRouter Image Capabilities Implementation Plan
+# OpenRouter 生图模型能力实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.
+> **供智能体执行者使用：** 必须使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 子技能，逐项执行本计划。各步骤使用复选框（- [ ]）跟踪进度。
 
-**Goal:** Make the image workbench resolve Google Vertex endpoint capabilities from OpenRouter before showing or sending model-specific image parameters, while removing Gemini 2.5 Flash Image and fixing the model picker layout.
+**目标：** 生图工作台在展示或发送模型专属图片参数前，先从 OpenRouter 解析 Google Vertex endpoint 能力；同时移除 Gemini 2.5 Flash Image，并修复模型选择器布局。
 
-**Architecture:** Add a protected Go capability resolver that reads OpenRouter per-endpoint image metadata, selects Google Vertex, normalizes the response, caches it for 10 minutes, and falls back to exact-model rows in the existing model_capabilities table. The Next.js workbench loads that normalized capability through TanStack Query, derives all visible controls and request parameters from it, and keeps the existing NewAPI generation route unchanged.
+**架构：** 新增一个受登录保护的 Go 能力解析服务，读取 OpenRouter 的 endpoint 级图片元数据，选择 Google Vertex，归一化响应并缓存 10 分钟；失败时回退到现有 model_capabilities 表中的具体模型记录。Next.js 工作台通过 TanStack Query 加载归一化能力，据此派生全部可见控件和请求参数，现有 NewAPI 生成链路保持不变。
 
-**Tech Stack:** Go 1.23, Gin, GORM, PostgreSQL, React 19, Next.js 16 App Router, TypeScript, TanStack Query, Ant Design, Radix Select, Zustand, Bun test.
+**技术栈：** Go 1.23、Gin、GORM、PostgreSQL、React 19、Next.js 16 App Router、TypeScript、TanStack Query、Ant Design、Radix Select、Zustand、Bun test。
 
-## Global Constraints
+## 全局约束
 
-- Generation remains Infinite Canvas -> NewAPI -> OpenRouter -> Google Vertex BYOK.
-- Capability discovery uses OpenRouter Image Models endpoint records and only accepts google-vertex endpoints.
-- Remove only google/gemini-2.5-flash-image from image-model choices; do not remove Gemini 2.5 text models.
-- Do not add dependencies or introduce a new state-management system.
-- Keep Chinese UI copy and the existing canvas/workbench theme.
-- Keep canvas generation behavior on its existing compatibility path; this plan changes only the image workbench capability flow.
-- Do not run a full build or broad syntax check; run only the targeted Go and Bun tests listed below.
-- Do not modify unrelated files or existing user changes.
-- After implementation, update pending-test.mdx and confirm todo.mdx needs no change.
-
----
-
-## File Map
-
-**Create**
-
-- server/internal/service/model_capability.go — OpenRouter endpoint fetch, Google Vertex selection, normalization, cache, and database fallback.
-- server/internal/service/model_capability_test.go — resolver, cache, parsing, and fallback tests.
-- server/internal/handler/model_capability.go — authenticated HTTP endpoint input validation and response.
-- web/src/services/api/model-capabilities.ts — typed frontend client for the platform resolver.
-- web/src/lib/image-model-capability.ts — pure selection, request-option, and reference-limit helpers.
-- web/tests/image-model-capability.test.ts — frontend capability behavior tests.
-
-**Modify**
-
-- server/internal/router/router.go — construct the capability service/handler and register the protected route.
-- server/internal/repository/db.go — seed exact Google Vertex fallback records without overwriting admin changes.
-- web/src/stores/use-config-store.ts — export the default image model list and remove Gemini 2.5 Flash Image from it.
-- web/src/services/api/image.ts — accept an optional resolved capability and send only validated resolution/aspect/reference-compatible data.
-- web/src/components/image-settings-panel.tsx — render dynamic capability-driven resolution and ratio controls.
-- web/src/components/model-picker.tsx — make long model names readable and the popup follow the trigger width.
-- web/src/app/(user)/image/page.tsx — load capabilities, gate generation, conditionally show references, normalize selections, and pass capability snapshots into requests.
-- docs/content/docs/progress/pending-test.mdx — record the user-testable workbench change.
+- 生成链路保持为 Infinite Canvas -> NewAPI -> OpenRouter -> Google Vertex BYOK。
+- 能力发现使用 OpenRouter Image Models 的 endpoint 记录，并且只接受 google-vertex endpoint。
+- 只从生图模型选项中移除 google/gemini-2.5-flash-image，不移除 Gemini 2.5 文本模型。
+- 不新增依赖，也不引入新的状态管理方案。
+- 保持中文 UI 文案以及现有画布／工作台主题。
+- 画布生成逻辑继续走现有兼容路径；本计划只修改生图工作台的能力流程。
+- 不执行完整构建或大范围语法检查，只运行下文列出的定向 Go 与 Bun 测试。
+- 不修改无关文件，也不覆盖用户已有改动。
+- 实现完成后更新 pending-test.mdx，并确认 todo.mdx 无需修改。
 
 ---
 
-### Task 1: Add the OpenRouter Google Vertex capability resolver
+## 文件映射
 
-**Files:**
+**新增文件**
 
-- Create: server/internal/service/model_capability_test.go
-- Create: server/internal/service/model_capability.go
-- Create: server/internal/handler/model_capability.go
-- Modify: server/internal/router/router.go
-- Modify: server/internal/repository/db.go
+- server/internal/service/model_capability.go — 获取 OpenRouter endpoint、选择 Google Vertex、归一化、缓存及数据库回退。
+- server/internal/service/model_capability_test.go — 解析、缓存、字段处理和回退测试。
+- server/internal/handler/model_capability.go — 受登录保护的 HTTP 接口入参校验与响应。
+- web/src/services/api/model-capabilities.ts — 平台能力解析接口的类型化前端客户端。
+- web/src/lib/image-model-capability.ts — 纯函数形式的选项归一化、请求参数和参考图限制工具。
+- web/tests/image-model-capability.test.ts — 前端模型能力行为测试。
 
-**Interfaces:**
+**修改文件**
 
-- Consumes: repository.Repository.FindModelCapability(modelName string, ability string) (model.ModelCapability, error)
-- Produces: service.ImageModelCapability
-- Produces: service.NewModelCapabilityService(repo *repository.Repository) *service.ModelCapabilityService
-- Produces: (*service.ModelCapabilityService).Resolve(ctx context.Context, modelName string) (service.ImageModelCapability, error)
-- Produces: GET /api/server/model-capabilities/resolve?model={openrouter-model-id}
+- server/internal/router/router.go — 构造能力 service／handler 并注册受保护路由。
+- server/internal/repository/db.go — 写入精确的 Google Vertex 回退记录，且不覆盖后台已有配置。
+- web/src/stores/use-config-store.ts — 导出默认生图模型列表，并从中移除 Gemini 2.5 Flash Image。
+- web/src/services/api/image.ts — 接收可选的已解析能力，只发送校验通过的分辨率、宽高比和参考图兼容数据。
+- web/src/components/image-settings-panel.tsx — 按能力动态渲染分辨率和宽高比控件。
+- web/src/components/model-picker.tsx — 完整展示长模型名，并让弹层宽度跟随触发框。
+- web/src/app/(user)/image/page.tsx — 加载能力、控制生成可用性、按条件展示参考图、归一化选择，并把能力快照传入请求。
+- docs/content/docs/progress/pending-test.mdx — 记录可由用户测试的工作台变更。
 
-- [ ] **Step 1: Write failing service tests**
+---
 
-Create server/internal/service/model_capability_test.go:
+### 任务 1：新增 OpenRouter Google Vertex 能力解析服务
+
+**文件：**
+
+- 新增：server/internal/service/model_capability_test.go
+- 新增：server/internal/service/model_capability.go
+- 新增：server/internal/handler/model_capability.go
+- 修改：server/internal/router/router.go
+- 修改：server/internal/repository/db.go
+
+**接口：**
+
+- 使用：repository.Repository.FindModelCapability(modelName string, ability string) (model.ModelCapability, error)
+- 产出：service.ImageModelCapability
+- 产出：service.NewModelCapabilityService(repo *repository.Repository) *service.ModelCapabilityService
+- 产出：(*service.ModelCapabilityService).Resolve(ctx context.Context, modelName string) (service.ImageModelCapability, error)
+- 产出：GET /api/server/model-capabilities/resolve?model={openrouter-model-id}
+
+- [ ] **步骤 1：编写会失败的 service 测试**
+
+新增 server/internal/service/model_capability_test.go：
 
 ~~~go
 package service
@@ -191,19 +191,19 @@ func TestModelCapabilityFallsBackToExactDatabaseModel(t *testing.T) {
 }
 ~~~
 
-- [ ] **Step 2: Run the tests and verify RED**
+- [ ] **步骤 2：运行测试并确认处于 RED 状态**
 
-Run from server:
+在 server 目录运行：
 
 ~~~powershell
 go test ./internal/service -run ModelCapability -v
 ~~~
 
-Expected: FAIL because newModelCapabilityService and ImageModelCapability do not exist.
+预期：FAIL，因为 newModelCapabilityService 和 ImageModelCapability 尚不存在。
 
-- [ ] **Step 3: Implement the resolver**
+- [ ] **步骤 3：实现能力解析服务**
 
-Create server/internal/service/model_capability.go with these exact public shapes and private collaborators:
+新增 server/internal/service/model_capability.go，并使用以下明确的公开结构和私有协作对象：
 
 ~~~go
 package service
@@ -401,9 +401,9 @@ func (s *ModelCapabilityService) storeCache(modelName string, value ImageModelCa
 }
 ~~~
 
-- [ ] **Step 4: Add the protected handler and route**
+- [ ] **步骤 4：新增受保护的 handler 和路由**
 
-Create server/internal/handler/model_capability.go:
+新增 server/internal/handler/model_capability.go：
 
 ~~~go
 package handler
@@ -437,22 +437,22 @@ func (h *ModelCapabilityHandler) Resolve(c *gin.Context) {
 }
 ~~~
 
-In server/internal/router/router.go, construct the service and handler next to the other creative services:
+在 server/internal/router/router.go 中，紧邻其他创作 service 构造能力 service 和 handler：
 
 ~~~go
 modelCapabilityService := service.NewModelCapabilityService(repo)
 modelCapabilityHandler := handler.NewModelCapabilityHandler(modelCapabilityService)
 ~~~
 
-Register this route after the billing routes inside the authenticated protected group:
+在已登录保护组中、计费路由之后注册此路由：
 
 ~~~go
 protected.GET("/model-capabilities/resolve", modelCapabilityHandler.Resolve)
 ~~~
 
-- [ ] **Step 5: Seed exact-model database fallbacks**
+- [ ] **步骤 5：写入具体模型的数据库回退记录**
 
-In server/internal/repository/db.go, import gorm.io/gorm/clause and replace the count-based seed with an insert that does not overwrite existing rows:
+在 server/internal/repository/db.go 中导入 gorm.io/gorm/clause，并把按总数判断的种子逻辑替换为不覆盖已有记录的插入：
 
 ~~~go
 func seedModelCapabilities(db *gorm.DB) error {
@@ -505,20 +505,20 @@ func imageCapabilitySeed(modelName string, resolutions []string, ratios []string
 }
 ~~~
 
-Also add encoding/json to the standard imports.
+同时在标准库导入中加入 encoding/json。
 
-- [ ] **Step 6: Run targeted Go tests and verify GREEN**
+- [ ] **步骤 6：运行定向 Go 测试并确认处于 GREEN 状态**
 
-Run from server:
+在 server 目录运行：
 
 ~~~powershell
 go test ./internal/service -run ModelCapability -v
 go test ./internal/httpx ./internal/service
 ~~~
 
-Expected: PASS with the two new model-capability tests and all existing tests passing.
+预期：PASS，两条新增模型能力测试和全部现有测试均通过。
 
-- [ ] **Step 7: Commit the backend resolver**
+- [ ] **步骤 7：提交后端能力解析实现**
 
 ~~~powershell
 git add server/internal/service/model_capability.go server/internal/service/model_capability_test.go server/internal/handler/model_capability.go server/internal/router/router.go server/internal/repository/db.go
@@ -527,29 +527,29 @@ git commit -m "feat: resolve OpenRouter image capabilities"
 
 ---
 
-### Task 2: Add frontend capability types, helpers, client, and request integration
+### 任务 2：新增前端能力类型、工具函数、客户端与请求集成
 
-**Files:**
+**文件：**
 
-- Create: web/tests/image-model-capability.test.ts
-- Create: web/src/lib/image-model-capability.ts
-- Create: web/src/services/api/model-capabilities.ts
-- Modify: web/src/stores/use-config-store.ts
-- Modify: web/src/services/api/image.ts
+- 新增：web/tests/image-model-capability.test.ts
+- 新增：web/src/lib/image-model-capability.ts
+- 新增：web/src/services/api/model-capabilities.ts
+- 修改：web/src/stores/use-config-store.ts
+- 修改：web/src/services/api/image.ts
 
-**Interfaces:**
+**接口：**
 
-- Consumes: GET /api/server/model-capabilities/resolve?model={model}
-- Produces: ImageModelCapability type
-- Produces: resolveImageModelCapability(model: string): Promise<ImageModelCapability>
-- Produces: normalizeImageCapabilitySelection(capability, resolution, aspectRatio)
-- Produces: resolveImageCapabilityRequestOptions(capability, resolution, aspectRatio)
-- Produces: imageReferencesForCapability(capability, references)
-- Extends: image.ts RequestOptions with imageCapability?: ImageModelCapability
+- 使用：GET /api/server/model-capabilities/resolve?model={model}
+- 产出：ImageModelCapability 类型
+- 产出：resolveImageModelCapability(model: string): Promise<ImageModelCapability>
+- 产出：normalizeImageCapabilitySelection(capability, resolution, aspectRatio)
+- 产出：resolveImageCapabilityRequestOptions(capability, resolution, aspectRatio)
+- 产出：imageReferencesForCapability(capability, references)
+- 扩展：image.ts 的 RequestOptions，新增 imageCapability?: ImageModelCapability
 
-- [ ] **Step 1: Write failing frontend behavior tests**
+- [ ] **步骤 1：编写会失败的前端行为测试**
 
-Create web/tests/image-model-capability.test.ts:
+新增 web/tests/image-model-capability.test.ts：
 
 ~~~ts
 import { describe, expect, test } from "bun:test";
@@ -601,19 +601,19 @@ describe("image model capabilities", () => {
 });
 ~~~
 
-- [ ] **Step 2: Run the new Bun test and verify RED**
+- [ ] **步骤 2：运行新增 Bun 测试并确认处于 RED 状态**
 
-Run from web:
+在 web 目录运行：
 
 ~~~powershell
 bun test tests/image-model-capability.test.ts
 ~~~
 
-Expected: FAIL because the helper module and DEFAULT_IMAGE_MODELS export do not exist.
+预期：FAIL，因为工具模块和 DEFAULT_IMAGE_MODELS 导出尚不存在。
 
-- [ ] **Step 3: Implement the pure capability helpers**
+- [ ] **步骤 3：实现纯函数形式的能力工具**
 
-Create web/src/lib/image-model-capability.ts:
+新增 web/src/lib/image-model-capability.ts：
 
 ~~~ts
 export type ImageModelCapability = {
@@ -656,9 +656,9 @@ function supportedValue(values: string[], current: string, preferred: string) {
 }
 ~~~
 
-- [ ] **Step 4: Add the typed frontend API client**
+- [ ] **步骤 4：新增类型化前端 API 客户端**
 
-Create web/src/services/api/model-capabilities.ts:
+新增 web/src/services/api/model-capabilities.ts：
 
 ~~~ts
 import type { ImageModelCapability } from "@/lib/image-model-capability";
@@ -670,9 +670,9 @@ export function resolveImageModelCapability(model: string) {
 }
 ~~~
 
-- [ ] **Step 5: Remove Gemini 2.5 Flash Image from image choices**
+- [ ] **步骤 5：从生图选项中移除 Gemini 2.5 Flash Image**
 
-In web/src/stores/use-config-store.ts, introduce the exported encoded constant:
+在 web/src/stores/use-config-store.ts 中新增以下带渠道编码的导出常量：
 
 ~~~ts
 export const DEFAULT_IMAGE_MODELS = [
@@ -682,7 +682,7 @@ export const DEFAULT_IMAGE_MODELS = [
 ];
 ~~~
 
-Keep these three raw image strings inline in defaultConfig.channels[0].models:
+在 defaultConfig.channels[0].models 中保留以下三个原始模型字符串：
 
 ~~~ts
 "google/gemini-3.1-flash-image",
@@ -690,15 +690,15 @@ Keep these three raw image strings inline in defaultConfig.channels[0].models:
 "google/gemini-3-pro-image",
 ~~~
 
-Use ...DEFAULT_IMAGE_MODELS inside defaultConfig.models and DEFAULT_IMAGE_MODELS as defaultConfig.imageModels. Remove only google/gemini-2.5-flash-image and default::google/gemini-2.5-flash-image from those image lists. Leave google/gemini-2.5-pro and google/gemini-2.5-flash in textModels.
+在 defaultConfig.models 中展开 ...DEFAULT_IMAGE_MODELS，并把 DEFAULT_IMAGE_MODELS 直接作为 defaultConfig.imageModels。只从这些生图列表中移除 google/gemini-2.5-flash-image 和 default::google/gemini-2.5-flash-image；textModels 中的 google/gemini-2.5-pro 与 google/gemini-2.5-flash 保持不变。
 
-- [ ] **Step 6: Pass resolved capabilities into image requests**
+- [ ] **步骤 6：把已解析能力传入图片请求**
 
-In web/src/services/api/image.ts:
+在 web/src/services/api/image.ts 中：
 
-1. Import ImageModelCapability and resolveImageCapabilityRequestOptions.
-2. Extend RequestOptions.
-3. Prefer the resolved workbench capability over the legacy hardcoded Google resolver in both generation paths.
+1. 导入 ImageModelCapability 和 resolveImageCapabilityRequestOptions。
+2. 扩展 RequestOptions。
+3. 在两条生成路径中，优先使用工作台已解析能力，而不是旧的 Google 硬编码解析器。
 
 ~~~ts
 import {
@@ -719,25 +719,25 @@ function resolveImageRequestOptions(config: AiConfig, model: string, options?: R
 }
 ~~~
 
-Replace both calls to resolveGoogleImageRequestOptions with:
+把两处 resolveGoogleImageRequestOptions 调用替换为：
 
 ~~~ts
 const googleOptions = resolveImageRequestOptions(config, requestConfig.model, options);
 ~~~
 
-The existing googleOptions truthy branch must remain responsible for omitting generic quality and pixel size, so an empty capability object still sends no unsupported parameter.
+保留现有 googleOptions 真值分支，让它继续负责省略通用 quality 和像素 size；这样即使能力对象为空，也不会发送不受支持的参数。
 
-- [ ] **Step 7: Run targeted Bun tests and verify GREEN**
+- [ ] **步骤 7：运行定向 Bun 测试并确认处于 GREEN 状态**
 
-Run from web:
+在 web 目录运行：
 
 ~~~powershell
 bun test tests/image-model-capability.test.ts tests/image-generation-options.test.ts
 ~~~
 
-Expected: PASS. The legacy image-generation-options tests remain green for canvas compatibility.
+预期：PASS。为保持画布兼容性，旧 image-generation-options 测试也应继续通过。
 
-- [ ] **Step 8: Commit the frontend capability foundation**
+- [ ] **步骤 8：提交前端能力基础实现**
 
 ~~~powershell
 git add web/tests/image-model-capability.test.ts web/src/lib/image-model-capability.ts web/src/services/api/model-capabilities.ts web/src/stores/use-config-store.ts web/src/services/api/image.ts
@@ -746,29 +746,29 @@ git commit -m "feat: add image capability client"
 
 ---
 
-### Task 3: Make the workbench UI capability-driven and fix the model picker
+### 任务 3：让工作台 UI 由能力驱动，并修复模型选择器
 
-**Files:**
+**文件：**
 
-- Modify: web/src/app/(user)/image/page.tsx
-- Modify: web/src/components/image-settings-panel.tsx
-- Modify: web/src/components/model-picker.tsx
+- 修改：web/src/app/(user)/image/page.tsx
+- 修改：web/src/components/image-settings-panel.tsx
+- 修改：web/src/components/model-picker.tsx
 
-**Interfaces:**
+**接口：**
 
-- Consumes: resolveImageModelCapability(model)
-- Consumes: ImageModelCapability
-- Consumes: normalizeImageCapabilitySelection
-- Consumes: imageReferencesForCapability
-- Produces: ImageSettingsPanel capability?: ImageModelCapability prop
+- 使用：resolveImageModelCapability(model)
+- 使用：ImageModelCapability
+- 使用：normalizeImageCapabilitySelection
+- 使用：imageReferencesForCapability
+- 产出：ImageSettingsPanel 的 capability?: ImageModelCapability 属性
 
-- [ ] **Step 1: Add capability loading to the workbench**
+- [ ] **步骤 1：在工作台接入能力加载**
 
-In web/src/app/(user)/image/page.tsx:
+在 web/src/app/(user)/image/page.tsx 中：
 
-1. Import useQuery, the capability API, modelOptionName, and helper functions.
-2. Resolve capabilities by normalized OpenRouter model ID.
-3. Require a loaded capability before generation.
+1. 导入 useQuery、能力 API、modelOptionName 和工具函数。
+2. 使用归一化后的 OpenRouter 模型 ID 解析能力。
+3. 只有能力加载完成后才允许生成。
 
 ~~~ts
 import { useQuery } from "@tanstack/react-query";
@@ -791,7 +791,7 @@ const capability = capabilityQuery.data;
 const canGenerate = Boolean(prompt.trim() && capability && !capabilityQuery.isFetching);
 ~~~
 
-Add an effect that normalizes stale model selections:
+新增 effect，把失效的模型参数选择归一化：
 
 ~~~ts
 useEffect(() => {
@@ -802,11 +802,11 @@ useEffect(() => {
 }, [capability, config.quality, config.size, updateConfig]);
 ~~~
 
-Do not use placeholderData or keepPreviousData; parameters from the old model must disappear while a new key is loading.
+不要使用 placeholderData 或 keepPreviousData；新模型能力加载期间必须移除旧模型参数。
 
-- [ ] **Step 2: Enforce reference support and limits**
+- [ ] **步骤 2：强制执行参考图支持状态和数量限制**
 
-Before adding uploaded, clipboard, or asset-picker references, calculate:
+在加入上传、剪贴板或素材选择器中的参考图前，先计算：
 
 ~~~ts
 const availableReferenceSlots = capability?.supportsReferences
@@ -814,7 +814,7 @@ const availableReferenceSlots = capability?.supportsReferences
     : 0;
 ~~~
 
-Only add the first availableReferenceSlots images. When it is zero, show:
+只加入前 availableReferenceSlots 张图片；该值为零时显示：
 
 ~~~ts
 message.warning(capability?.supportsReferences
@@ -822,7 +822,7 @@ message.warning(capability?.supportsReferences
     : "当前模型不支持参考图");
 ~~~
 
-Update buildRequestSnapshot to require a capability and validate references:
+修改 buildRequestSnapshot，要求能力已加载并校验参考图：
 
 ~~~ts
 if (!capability) {
@@ -844,7 +844,7 @@ return {
 };
 ~~~
 
-Update the snapshot type in runGenerationSlot and pass the immutable capability:
+修改 runGenerationSlot 的快照类型，并传入不可变能力快照：
 
 ~~~ts
 const requestOptions = { imageCapability: snapshot.capability };
@@ -853,11 +853,11 @@ const result = snapshot.references.length
     : await requestGeneration(snapshot.config, snapshot.text, requestOptions);
 ~~~
 
-- [ ] **Step 3: Render loading, error, and reference states**
+- [ ] **步骤 3：渲染加载、错误和参考图状态**
 
-Render the existing reference section only when capability?.supportsReferences is true. When a model with selected references does not support them, keep references in component state, hide the section, and show the warning once from an effect keyed by capability.model.
+只有 capability?.supportsReferences 为 true 时才渲染现有参考图区。如果已经选择了参考图，但切换后的模型不支持参考图，则在组件状态中保留这些图片、隐藏参考图区，并通过以 capability.model 为依赖的 effect 只提示一次。
 
-Pass capability state into GenerationSettings:
+把能力状态传给 GenerationSettings：
 
 ~~~tsx
 <GenerationSettings
@@ -872,7 +872,7 @@ Pass capability state into GenerationSettings:
 />
 ~~~
 
-Inside GenerationSettings, keep the model picker visible at all times. Under it render exactly one of these branches:
+在 GenerationSettings 内始终显示模型选择器，并在它下面准确渲染以下三个分支之一：
 
 ~~~tsx
 {capabilityLoading ? (
@@ -900,16 +900,16 @@ Inside GenerationSettings, keep the model picker visible at all times. Under it 
 )}
 ~~~
 
-- [ ] **Step 4: Make ImageSettingsPanel use endpoint enums**
+- [ ] **步骤 4：让 ImageSettingsPanel 使用 endpoint 枚举**
 
-In web/src/components/image-settings-panel.tsx:
+在 web/src/components/image-settings-panel.tsx 中：
 
-1. Add capability?: ImageModelCapability to props.
-2. When capability exists, derive visible quality/resolution and aspect options from its arrays.
-3. Do not add auto or pixel-dimension controls to a capability-driven panel.
-4. Keep the existing no-capability behavior unchanged for canvas callers.
+1. 在 props 中加入 capability?: ImageModelCapability。
+2. capability 存在时，从它的数组派生可见的质量／分辨率与宽高比选项。
+3. 能力驱动面板中不添加 auto 或像素尺寸控件。
+4. 对画布调用方保持现有无 capability 行为不变。
 
-Use this ratio adapter so extreme ratios have meaningful icons without adding hardcoded entries:
+使用以下比例适配器，让极端比例无需硬编码也能得到合理图标：
 
 ~~~ts
 function capabilityAspectOption(value: string) {
@@ -924,7 +924,7 @@ function capabilityAspectOption(value: string) {
 }
 ~~~
 
-At the top of the component derive:
+在组件顶部派生：
 
 ~~~ts
 const capabilityMode = Boolean(capability);
@@ -946,23 +946,23 @@ const selectedAspect = capability
       : visibleAspectOptions.find((item) => (item.size || item.value) === activeSize || item.value === activeSize);
 ~~~
 
-Use 分辨率 as the title when capabilityMode is true, hide arbitrary W/H dimensions when capabilityMode is true, and write the selected ratio directly into config.size.
+capabilityMode 为 true 时使用“分辨率”作为标题、隐藏任意 W/H 尺寸输入，并把选中的比例直接写入 config.size。
 
-- [ ] **Step 5: Fix model picker width and long labels**
+- [ ] **步骤 5：修复模型选择器宽度和长名称显示**
 
-In the workbench GenerationSettings, change the model label wrapper to span both columns:
+在工作台 GenerationSettings 中，把模型字段外层改为横跨两列：
 
 ~~~tsx
 <label className="col-span-2 block min-w-0">
 ~~~
 
-In web/src/components/model-picker.tsx:
+在 web/src/components/model-picker.tsx 中：
 
-- Display modelOptionName(current) in the trigger while retaining modelOptionLabel in title.
-- Make the popup at least the trigger width and no wider than the viewport.
-- Render model name and channel name on separate lines.
+- 触发框显示 modelOptionName(current)，同时在 title 中保留 modelOptionLabel。
+- 弹层宽度至少等于触发框，且不超过视口。
+- 模型名和渠道名分两行展示。
 
-Use:
+使用：
 
 ~~~tsx
 <span className="canvas-model-picker-text min-w-0 flex-1 truncate text-left">
@@ -970,13 +970,13 @@ Use:
 </span>
 ~~~
 
-Update SelectContent:
+修改 SelectContent：
 
 ~~~tsx
 className="z-[1200] w-[min(28rem,calc(100vw-24px))] min-w-[var(--radix-select-trigger-width)] rounded-xl border border-border/70 bg-popover p-1 shadow-xl"
 ~~~
 
-Replace ModelLabel with:
+把 ModelLabel 替换为：
 
 ~~~tsx
 function ModelLabel({ config, model }: { config: AiConfig; model: string }) {
@@ -994,19 +994,19 @@ function ModelLabel({ config, model }: { config: AiConfig; model: string }) {
 }
 ~~~
 
-Add decodeChannelModel to the existing store imports.
+在现有 store 导入中加入 decodeChannelModel。
 
-- [ ] **Step 6: Run targeted frontend tests**
+- [ ] **步骤 6：运行定向前端测试**
 
-Run from web:
+在 web 目录运行：
 
 ~~~powershell
 bun test tests/image-model-capability.test.ts tests/image-generation-options.test.ts
 ~~~
 
-Expected: PASS.
+预期：PASS。
 
-- [ ] **Step 7: Commit the workbench UI**
+- [ ] **步骤 7：提交工作台 UI**
 
 ~~~powershell
 git add 'web/src/app/(user)/image/page.tsx' web/src/components/image-settings-panel.tsx web/src/components/model-picker.tsx
@@ -1015,21 +1015,21 @@ git commit -m "feat: adapt image workbench to model capabilities"
 
 ---
 
-### Task 4: Verify the integrated behavior and update pending-test documentation
+### 任务 4：验证集成行为并更新 pending-test 文档
 
-**Files:**
+**文件：**
 
-- Modify: docs/content/docs/progress/pending-test.mdx
-- Inspect only: docs/content/docs/progress/todo.mdx
+- 修改：docs/content/docs/progress/pending-test.mdx
+- 仅检查：docs/content/docs/progress/todo.mdx
 
-**Interfaces:**
+**接口：**
 
-- Consumes: completed backend resolver and frontend workbench.
-- Produces: a user-testable pending-test entry and evidence from targeted automated/manual checks.
+- 使用：已完成的后端能力解析服务和前端工作台。
+- 产出：一条可由用户测试的 pending-test 记录，以及定向自动／人工检查证据。
 
-- [ ] **Step 1: Run all targeted automated tests**
+- [ ] **步骤 1：运行全部定向自动化测试**
 
-Run:
+运行：
 
 ~~~powershell
 Set-Location server
@@ -1038,51 +1038,51 @@ Set-Location ../web
 bun test tests/image-model-capability.test.ts tests/image-generation-options.test.ts
 ~~~
 
-Expected: all targeted tests PASS with no warnings introduced by the new code. Do not run next build.
+预期：全部定向测试 PASS，且新代码没有引入警告。不运行 next build。
 
-- [ ] **Step 2: Inspect the local page at port 3006**
+- [ ] **步骤 2：检查本地 3006 端口页面**
 
-Open http://localhost:3006/image in the in-app browser and verify:
+在应用内浏览器打开 http://localhost:3006/image，并确认：
 
-1. The model field uses the full settings-column width.
-2. Every dropdown item shows the full model ID and platform channel on separate lines.
-3. Gemini 2.5 Flash Image is absent.
-4. Flash Lite shows only 1K.
-5. Flash shows 512, 1K, 2K, and 4K.
-6. Pro shows only 1K and 2K.
-7. Flash/Lite show 14 endpoint ratios; Pro shows 10.
-8. The reference area appears because the three current models expose input_references.
-9. Switching models temporarily removes the old model controls until the new capability is ready.
+1. 模型字段占满参数栏宽度。
+2. 每个下拉项分行显示完整模型 ID 和平台渠道。
+3. Gemini 2.5 Flash Image 已移除。
+4. Flash Lite 只显示 1K。
+5. Flash 显示 512、1K、2K、4K。
+6. Pro 只显示 1K、2K。
+7. Flash／Lite 显示 14 个 endpoint 比例；Pro 显示 10 个。
+8. 三个当前模型都暴露 input_references，因此参考图区可见。
+9. 切换模型时，旧模型控件会暂时消失，直到新能力准备完成。
 
-- [ ] **Step 3: Inspect the capability request and generation route**
+- [ ] **步骤 3：检查能力请求和生成路由**
 
-In the browser network panel, switch models and confirm:
+在浏览器网络面板中切换模型并确认：
 
 ~~~text
 GET /api/server/model-capabilities/resolve?model=google%2F...
 ~~~
 
-Generate one image and confirm the generation request still targets:
+生成一张图片，并确认生成请求仍然发送到：
 
 ~~~text
 POST /api/server/ai/images/generations
 ~~~
 
-For Pro, confirm the outgoing payload cannot contain resolution=4K.
+对 Pro 模型，确认发出的请求体不可能包含 resolution=4K。
 
-- [ ] **Step 4: Update pending-test.mdx**
+- [ ] **步骤 4：更新 pending-test.mdx**
 
-The file currently contains a duplicated second frontmatter and repeated list. Remove the second frontmatter and repeated block while preserving every unique existing bullet once, then add this bullet to the single active pending-test list:
+该文件当前包含重复的第二段 frontmatter 和重复列表。删除第二段 frontmatter 与重复块，确保每条现有的唯一事项只保留一次，然后把下面这条加入唯一的有效 pending-test 列表：
 
 ~~~md
 - 生图工作台模型能力适配：移除 Gemini 2.5 Flash Image，修复长模型名称显示；切换模型时从 OpenRouter 读取 Google Vertex endpoint 的分辨率、宽高比和参考图能力，仅展示并发送当前模型支持的参数，OpenRouter 不可用时回退具体模型的本地能力记录。
 ~~~
 
-Inspect docs/content/docs/progress/todo.mdx. Expected: no matching todo item exists, so leave it unchanged.
+检查 docs/content/docs/progress/todo.mdx。预期：不存在对应待办，因此保持不变。
 
-- [ ] **Step 5: Review the final diff**
+- [ ] **步骤 5：审查最终差异**
 
-Run:
+运行：
 
 ~~~powershell
 git status --short
@@ -1090,9 +1090,9 @@ git diff --check
 git diff --stat
 ~~~
 
-Expected: only the files listed in this plan are changed; no whitespace errors; no unrelated edits.
+预期：只有本计划列出的文件发生变化，没有空白字符错误，也没有无关改动。
 
-- [ ] **Step 6: Commit documentation**
+- [ ] **步骤 6：提交文档**
 
 ~~~powershell
 git add docs/content/docs/progress/pending-test.mdx
