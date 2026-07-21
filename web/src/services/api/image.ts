@@ -4,6 +4,10 @@ import { buildApiUrl, resolveModelRequestConfig, type AiConfig, type ModelChanne
 import { nanoid } from "nanoid";
 import { dataUrlToFile } from "@/lib/image-utils";
 import { resolveGoogleImageRequestOptions } from "@/lib/image-generation-options";
+import {
+    resolveImageCapabilityRequestOptions,
+    type ImageModelCapability,
+} from "@/lib/image-model-capability";
 import { buildImageReferencePromptText } from "@/lib/image-reference-prompt";
 import { isServerAIEnabled, serverAIHeaders, serverAIUrl } from "@/services/api/server";
 import { imageToDataUrl } from "@/services/image-storage";
@@ -92,7 +96,10 @@ type GeminiPayload = {
     promptFeedback?: { blockReason?: string };
 };
 type GeminiStreamState = { buffer: string; text: string; toolCalls: ResponseToolCall[]; error?: string };
-type RequestOptions = { signal?: AbortSignal };
+type RequestOptions = {
+    signal?: AbortSignal;
+    imageCapability?: ImageModelCapability;
+};
 
 const QUALITY_BASE: Record<string, number> = {
     low: 1024,
@@ -106,6 +113,14 @@ const QUALITY_ALIASES: Record<string, string> = {
     "2k": "medium",
     "4k": "high",
 };
+
+function resolveImageRequestOptions(config: AiConfig, model: string, options?: RequestOptions) {
+    if (options?.imageCapability) {
+        return resolveImageCapabilityRequestOptions(options.imageCapability, config.quality, config.size);
+    }
+    return resolveGoogleImageRequestOptions(model, config.quality, config.size);
+}
+
 const DEFAULT_IMAGE_SHORT_SIDE = 1024;
 const IMAGE_SIZE_STEP = 16;
 const IMAGE_MIN_PIXELS = 655360;
@@ -622,7 +637,7 @@ export async function requestGeneration(config: AiConfig, prompt: string, option
             throw new Error(readAxiosError(error, "请求失败"));
         }
     }
-    const googleOptions = resolveGoogleImageRequestOptions(requestConfig.model, config.quality, config.size);
+    const googleOptions = resolveImageRequestOptions(config, requestConfig.model, options);
     const quality = googleOptions ? undefined : normalizeQuality(config.quality);
     const requestSize = googleOptions ? undefined : resolveRequestSize(quality, config.size);
     try {
@@ -662,7 +677,7 @@ export async function requestEdit(config: AiConfig, prompt: string, references: 
             throw new Error(readAxiosError(error, "请求失败"));
         }
     }
-    const googleOptions = resolveGoogleImageRequestOptions(requestConfig.model, config.quality, config.size);
+    const googleOptions = resolveImageRequestOptions(config, requestConfig.model, options);
     const quality = googleOptions ? undefined : normalizeQuality(config.quality);
     const requestSize = googleOptions ? undefined : resolveRequestSize(quality, config.size);
     const formData = new FormData();

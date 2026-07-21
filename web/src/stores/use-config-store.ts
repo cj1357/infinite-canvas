@@ -62,6 +62,12 @@ const CHANNEL_MODEL_SEPARATOR = "::";
 const OPENAI_BASE_URL = "https://api.openai.com";
 const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
 
+export const DEFAULT_IMAGE_MODELS = [
+    "default::google/gemini-3.1-flash-image",
+    "default::google/gemini-3.1-flash-lite-image",
+    "default::google/gemini-3-pro-image",
+];
+
 export const defaultConfig: AiConfig = {
     channelMode: "remote",
     baseUrl: "",
@@ -76,7 +82,7 @@ export const defaultConfig: AiConfig = {
             apiFormat: "openai",
             models: [
                 "google/gemini-3.5-flash", "google/gemini-3.1-flash-lite", "google/gemini-2.5-pro", "google/gemini-2.5-flash",
-                "google/gemini-3.1-flash-image", "google/gemini-3.1-flash-lite-image", "google/gemini-3-pro-image", "google/gemini-2.5-flash-image",
+                "google/gemini-3.1-flash-image", "google/gemini-3.1-flash-lite-image", "google/gemini-3-pro-image",
                 "veo-3.1-generate-001", "veo-3.1-fast-generate-001", "veo-3.1-lite-generate-001",
                 "google/gemini-3.1-flash-tts-preview"
             ],
@@ -98,13 +104,11 @@ export const defaultConfig: AiConfig = {
     systemPrompt: "",
     models: [
         "default::google/gemini-3.5-flash", "default::google/gemini-3.1-flash-lite", "default::google/gemini-2.5-pro", "default::google/gemini-2.5-flash",
-        "default::google/gemini-3.1-flash-image", "default::google/gemini-3.1-flash-lite-image", "default::google/gemini-3-pro-image", "default::google/gemini-2.5-flash-image",
+        ...DEFAULT_IMAGE_MODELS,
         "default::veo-3.1-generate-001", "default::veo-3.1-fast-generate-001", "default::veo-3.1-lite-generate-001",
         "default::google/gemini-3.1-flash-tts-preview"
     ],
-    imageModels: [
-        "default::google/gemini-3.1-flash-image", "default::google/gemini-3.1-flash-lite-image", "default::google/gemini-3-pro-image", "default::google/gemini-2.5-flash-image"
-    ],
+    imageModels: DEFAULT_IMAGE_MODELS,
     videoModels: [
         "default::veo-3.1-generate-001", "default::veo-3.1-fast-generate-001", "default::veo-3.1-lite-generate-001"
     ],
