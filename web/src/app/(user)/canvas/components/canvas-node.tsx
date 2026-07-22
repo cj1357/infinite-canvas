@@ -30,6 +30,7 @@ type CanvasNodeProps = {
     renderPanel?: (node: CanvasNodeData) => ReactNode;
     renderNodeContent?: (node: CanvasNodeData) => ReactNode;
     batchCount?: number;
+    batchGroupIndex?: number;
     batchExpanded?: boolean;
     batchClosing?: boolean;
     batchOpening?: boolean;
@@ -56,6 +57,7 @@ type NodeContentRendererProps = {
     textareaRef: React.RefObject<HTMLTextAreaElement | null>;
     isBatchRoot: boolean;
     batchCount: number;
+    batchGroupIndex: number;
     batchExpanded: boolean;
     batchOpening: boolean;
     batchRecovering: boolean;
@@ -85,6 +87,7 @@ export const CanvasNode = React.memo(function CanvasNode({
     renderPanel,
     renderNodeContent,
     batchCount = 0,
+    batchGroupIndex = 0,
     batchExpanded = false,
     batchClosing = false,
     batchOpening = false,
@@ -301,6 +304,7 @@ export const CanvasNode = React.memo(function CanvasNode({
                         textareaRef={textareaRef}
                         isBatchRoot={isBatchRoot}
                         batchCount={batchCount}
+                        batchGroupIndex={batchGroupIndex}
                         batchExpanded={batchExpanded}
                         batchOpening={batchOpening}
                         batchRecovering={batchRecovering}
@@ -316,7 +320,7 @@ export const CanvasNode = React.memo(function CanvasNode({
                 </div>
 
                 {showImageInfo && hasImageContent ? <ImageInfoBar node={data} /> : null}
-                {resourceLabel ? <ResourceLabelBadge reference={resourceLabel} /> : null}
+                {resourceLabel && !isBatchRoot ? <ResourceLabelBadge reference={resourceLabel} /> : null}
 
                 {!hasImageContent && !hasVideoContent && !hasAudioContent ? <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12" style={{ background: `linear-gradient(to top, ${theme.canvas.background}66, transparent)` }} /> : null}
 
@@ -479,6 +483,7 @@ function ImageNodeContent(props: NodeContentRendererProps) {
             node={props.node}
             isBatchRoot={props.isBatchRoot}
             batchCount={props.batchCount}
+            batchGroupIndex={props.batchGroupIndex}
             batchExpanded={props.batchExpanded}
             batchOpening={props.batchOpening}
             batchRecovering={props.batchRecovering}
@@ -540,6 +545,7 @@ function ImageContent({
     node,
     isBatchRoot,
     batchCount,
+    batchGroupIndex,
     batchExpanded,
     batchOpening,
     batchRecovering,
@@ -549,6 +555,7 @@ function ImageContent({
     node: CanvasNodeData;
     isBatchRoot: boolean;
     batchCount: number;
+    batchGroupIndex: number;
     batchExpanded: boolean;
     batchOpening: boolean;
     batchRecovering: boolean;
@@ -573,7 +580,7 @@ function ImageContent({
                 <button
                     type="button"
                     className="absolute right-2.5 top-2.5 z-30 flex h-8 items-center justify-center gap-1 rounded-full border px-2.5 text-xs font-semibold shadow-[0_6px_18px_rgba(15,23,42,.10)] backdrop-blur-md transition hover:scale-[1.02]"
-                    style={{ background: `${theme.toolbar.panel}d9`, borderColor: `${theme.toolbar.border}cc`, color: theme.node.text }}
+                    style={{ background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text }}
                     aria-label={batchExpanded ? "图片组已展开" : "图片组已收起"}
                     onClick={(event) => {
                         event.stopPropagation();
@@ -582,8 +589,10 @@ function ImageContent({
                     onMouseDown={(event) => event.stopPropagation()}
                     onPointerDown={(event) => event.stopPropagation()}
                 >
-                    <span className="leading-none text-[#2f80ff]">{batchCount}</span>
-                    <ChevronRight className={`size-3.5 opacity-55 transition-transform ${batchExpanded ? "rotate-90" : ""}`} />
+                    <span className="whitespace-nowrap leading-none">
+                        第 {batchGroupIndex} 组 · <span className="text-[#2f80ff]">{batchCount} 张</span>
+                    </span>
+                    <ChevronRight className={`size-3.5 shrink-0 transition-transform ${batchExpanded ? "rotate-90" : ""}`} />
                 </button>
             ) : null}
             {isBatchChild ? (

@@ -17,9 +17,9 @@ export type CanvasResourceReference = {
 
 export function buildCanvasResourceReferences(nodes: CanvasNodeData[], connections: CanvasConnection[], contextNodeId?: string | null) {
     const contextNodes = contextNodeId ? getMentionResourceNodes(contextNodeId, nodes, connections) : [];
-    const globalReferences = labelResourceNodes(nodes.filter(isResourceNode), false);
-    const activeByNodeId = new Map(labelResourceNodes(contextNodes, true).map((reference) => [reference.nodeId, reference]));
-    return globalReferences.map((reference) => activeByNodeId.get(reference.nodeId) || reference);
+    const globalReferences = labelResourceNodes(nodes.filter((node) => isResourceNode(node) && !node.metadata?.isBatchRoot), false);
+    const activeNodeIds = new Set(labelResourceNodes(contextNodes, true).map((reference) => reference.nodeId));
+    return globalReferences.map((reference) => (activeNodeIds.has(reference.nodeId) ? { ...reference, active: true } : reference));
 }
 
 export function buildNodeMentionReferences(node: CanvasNodeData, nodes: CanvasNodeData[], connections: CanvasConnection[]) {

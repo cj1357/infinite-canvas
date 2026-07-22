@@ -53,6 +53,7 @@ import { ResultGroupNode } from "../components/result-group-node";
 import { useCanvasStore } from "../stores/use-canvas-store";
 import { applyCanvasAgentOps, type CanvasAgentOp, type CanvasAgentSnapshot } from "../utils/canvas-agent-ops";
 import { buildCanvasResourceReferences, buildNodeMentionReferences } from "../utils/canvas-resource-references";
+import { CANVAS_NODE_TOOLBAR_HIDE_DELAY_MS, resolveCanvasToolbarNodeId } from "../utils/canvas-toolbar-state";
 import type { CanvasAgentMode } from "../components/canvas-agent-chat-ui";
 import { cancelGenerationRun, createGenerationRun, getGenerationRunDetail, mediaObjectUrl, retryGenerationRun, saveGenerationOutputAsAsset, type GenerationOutput, type GenerationRunDetail, type ReferenceIntent, type ReferenceSetDetail } from "@/services/api/creative";
 import {
@@ -584,7 +585,7 @@ function InfiniteCanvasPage() {
         toolbarHideTimerRef.current = setTimeout(() => {
             setToolbarNodeId(null);
             toolbarHideTimerRef.current = null;
-        }, 120);
+        }, CANVAS_NODE_TOOLBAR_HIDE_DELAY_MS);
     }, []);
 
     const connectNodes = useCallback(
@@ -682,7 +683,8 @@ function InfiniteCanvasPage() {
     }, [collapsingBatchIds, nodes, size.height, size.width, viewport.k, viewport.x, viewport.y]);
 
     const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
-    const toolbarNode = toolbarNodeId ? nodeById.get(toolbarNodeId) || null : null;
+    const toolbarAnchorNodeId = resolveCanvasToolbarNodeId(toolbarNodeId, selectedNodeIds);
+    const toolbarNode = toolbarAnchorNodeId ? nodeById.get(toolbarAnchorNodeId) || null : null;
     const infoNode = infoNodeId ? nodeById.get(infoNodeId) || null : null;
     const cropNode = cropNodeId ? nodeById.get(cropNodeId) || null : null;
     const maskEditNode = maskEditNodeId ? nodeById.get(maskEditNodeId) || null : null;
@@ -719,6 +721,14 @@ function InfiniteCanvasPage() {
         const map = new Map<string, number>();
         nodes.forEach((node) => {
             if (node.metadata?.isBatchRoot) map.set(node.id, node.metadata.batchChildIds?.length || 0);
+        });
+        return map;
+    }, [nodes]);
+    const batchGroupIndexById = useMemo(() => {
+        const map = new Map<string, number>();
+        let groupIndex = 0;
+        nodes.forEach((node) => {
+            if (node.metadata?.isBatchRoot) map.set(node.id, ++groupIndex);
         });
         return map;
     }, [nodes]);
@@ -1070,6 +1080,7 @@ function InfiniteCanvasPage() {
                 setSelectionBox(null);
                 setSelectedNodeIds(new Set());
                 setSelectedConnectionId(null);
+                setToolbarNodeId(null);
                 return;
             }
 
@@ -2773,6 +2784,7 @@ function InfiniteCanvasPage() {
                             editRequestNonce={editingNodeId === node.id ? editRequestNonce : 0}
                             showPanel={dialogNodeId === node.id && !selectionBox}
                             batchCount={batchChildCountById.get(node.id) || 0}
+                            batchGroupIndex={batchGroupIndexById.get(node.id) || 0}
                             batchExpanded={Boolean(node.metadata?.imageBatchExpanded)}
                             batchClosing={Boolean(node.metadata?.batchRootId && collapsingBatchIds.has(node.metadata.batchRootId))}
                             batchOpening={openingBatchIds.has(node.id)}

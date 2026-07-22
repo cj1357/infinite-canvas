@@ -43,6 +43,23 @@ describe("ui warning patterns", () => {
         expect(source("src/app/(user)/canvas/components/canvas-node.tsx")).toContain('data.type === CanvasNodeType.Image ? "w-[600px]" : "w-[500px]"');
     });
 
+    test("image batch roots do not overlap their count with a resource label", () => {
+        expect(source("src/app/(user)/canvas/components/canvas-node.tsx")).toContain("resourceLabel && !isBatchRoot");
+    });
+
+    test("image batch roots identify their group and count directly", () => {
+        const node = source("src/app/(user)/canvas/components/canvas-node.tsx");
+        expect(node).toContain("第 {batchGroupIndex} 组");
+        expect(node).toContain("{batchCount} 张");
+    });
+
+    test("image batch group controls keep their label and arrow readable over image content", () => {
+        const node = source("src/app/(user)/canvas/components/canvas-node.tsx");
+        expect(node).toContain("background: theme.node.panel");
+        expect(node).not.toContain("background: `${theme.toolbar.panel}d9`");
+        expect(node).toContain("size-3.5 shrink-0 transition-transform");
+    });
+
     test("configuration nodes place model selection and image settings on separate rows", () => {
         const panel = source("src/app/(user)/canvas/components/canvas-config-node-panel.tsx");
         expect(panel).toContain('className="mb-2 grid min-w-0 cursor-default grid-cols-1 gap-2"');
