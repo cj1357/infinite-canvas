@@ -214,6 +214,8 @@ export function CanvasNodeInfoModal({ node, open, onClose }: { node: CanvasNodeD
     const [view, setView] = useState<"info" | "json">("info");
     const imageBytes = node?.type === CanvasNodeType.Image && node.metadata?.content ? getDataUrlByteSize(node.metadata.content) : 0;
     const batchCount = node?.type === CanvasNodeType.Image ? node.metadata?.batchChildIds?.length || 0 : 0;
+    const canvasSize = node ? `${Math.round(node.width)} x ${Math.round(node.height)}` : "";
+    const mediaPixelSize = node?.metadata?.naturalWidth && node.metadata?.naturalHeight ? `${Math.round(node.metadata.naturalWidth)} x ${Math.round(node.metadata.naturalHeight)}` : canvasSize;
     const json = useMemo(() => {
         if (!node) return "";
         return JSON.stringify(
@@ -256,7 +258,14 @@ export function CanvasNodeInfoModal({ node, open, onClose }: { node: CanvasNodeD
                         <div className="thin-scrollbar h-full space-y-3 overflow-auto pr-1">
                             <InfoRow label="ID" value={node.id} />
                             <InfoRow label="类型" value={node.type === CanvasNodeType.Text ? "文本" : node.type === CanvasNodeType.Image ? "图片" : node.type === CanvasNodeType.Video ? "视频" : node.type === CanvasNodeType.Audio ? "音频" : "生成配置"} />
-                            <InfoRow label="尺寸" value={`${Math.round(node.width)} x ${Math.round(node.height)}`} />
+                            {node.type === CanvasNodeType.Image ? (
+                                <>
+                                    <InfoRow label="图片像素" value={mediaPixelSize} />
+                                    <InfoRow label="画布尺寸" value={canvasSize} />
+                                </>
+                            ) : (
+                                <InfoRow label="尺寸" value={canvasSize} />
+                            )}
                             <InfoRow label="位置" value={`${Math.round(node.position.x)}, ${Math.round(node.position.y)}`} />
                             <InfoRow label="状态" value={node.metadata?.status || "idle"} />
                             {batchCount > 1 ? <InfoRow label="图片组" value={`${batchCount} 张`} /> : null}

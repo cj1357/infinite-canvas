@@ -6,6 +6,9 @@ import (
 	"mime/multipart"
 	"net/textproto"
 	"testing"
+	"time"
+
+	"infinite-canvas/server/internal/config"
 )
 
 type testUpload struct {
@@ -49,6 +52,18 @@ func decodePreparedBody(t *testing.T, body []byte) map[string]any {
 		t.Fatal(err)
 	}
 	return payload
+}
+
+func TestDefaultGatewayTimeoutCapsAtTenMinutes(t *testing.T) {
+	if got := defaultGatewayTimeout(config.Config{}); got != 10*time.Minute {
+		t.Fatalf("expected default timeout to be 10 minutes, got %s", got)
+	}
+	if got := defaultGatewayTimeout(config.Config{ModelGatewayTimeout: 20 * time.Minute}); got != 10*time.Minute {
+		t.Fatalf("expected configured timeout to be capped at 10 minutes, got %s", got)
+	}
+	if got := normalizeGatewayTimeoutSeconds(1200, 10*time.Minute); got != 600 {
+		t.Fatalf("expected saved timeout to be capped at 600 seconds, got %d", got)
+	}
 }
 
 func TestPrepareImageEditRequestBuildsGenerationPayloadForEveryModel(t *testing.T) {

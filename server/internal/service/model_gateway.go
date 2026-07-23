@@ -75,6 +75,7 @@ var imageEditValueFields = []string{
 }
 
 const imageMaskPromptSuffix = "参考图说明：最后一张参考图是蒙版。请仅修改蒙版透明区域，其他区域尽量保持不变。"
+const maxGatewayTimeoutSeconds = 600
 
 func NewModelGatewayService(repo *repository.Repository, cfg config.Config) *ModelGatewayService {
 	return &ModelGatewayService{repo: repo, cfg: cfg, client: &http.Client{}}
@@ -116,6 +117,7 @@ func (s *ModelGatewayService) SaveSettings(input ModelGatewayConfigInput) (Model
 	if item.TimeoutSeconds <= 0 {
 		item.TimeoutSeconds = int(defaultGatewayTimeout(s.cfg) / time.Second)
 	}
+	item.TimeoutSeconds = normalizeGatewayTimeoutSeconds(item.TimeoutSeconds, defaultGatewayTimeout(s.cfg))
 	if err := s.repo.SaveNewAPIConfig(&item); err != nil {
 		return ModelGatewaySettings{}, err
 	}
@@ -158,10 +160,7 @@ func (s *ModelGatewayService) Proxy(ctx context.Context, method string, path str
 	if err != nil {
 		return nil, err
 	}
-	timeout := time.Duration(cfg.TimeoutSeconds) * time.Second
-	if timeout <= 0 {
-		timeout = defaultGatewayTimeout(s.cfg)
-	}
+	timeout := time.Duration(normalizeGatewayTimeoutSeconds(cfg.TimeoutSeconds, defaultGatewayTimeout(s.cfg))) * time.Second
 	req, err := http.NewRequestWithContext(ctx, method, targetURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
@@ -285,6 +284,13 @@ func multipartImageReference(header *multipart.FileHeader) (map[string]any, erro
 	if mimeType == "" || mimeType == "application/octet-stream" {
 		mimeType = http.DetectContentType(data)
 	}
+	return imageReferenceFromBytes(data, mimeType)
+}
+
+func imageReferenceFromBytes(data []byte, mimeType string) (map[string]any, error) {
+	if mimeType == "" || mimeType == "application/octet-stream" {
+		mimeType = http.DetectContentType(data)
+	}
 	if !strings.HasPrefix(mimeType, "image/") {
 		return nil, errors.New("参考文件必须是图片")
 	}
@@ -328,6 +334,7 @@ func (s *ModelGatewayService) resolveConfig() (model.NewAPIConfig, error) {
 		if item.Provider == "" {
 			item.Provider = "newapi"
 		}
+		item.TimeoutSeconds = normalizeGatewayTimeoutSeconds(item.TimeoutSeconds, defaultGatewayTimeout(s.cfg))
 		return item, nil
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -372,9 +379,22 @@ func publicGatewayURL(cfg model.NewAPIConfig) string {
 
 func defaultGatewayTimeout(cfg config.Config) time.Duration {
 	if cfg.ModelGatewayTimeout > 0 {
+		if cfg.ModelGatewayTimeout > 10*time.Minute {
+			return 10 * time.Minute
+		}
 		return cfg.ModelGatewayTimeout
 	}
 	return 10 * time.Minute
+}
+
+func normalizeGatewayTimeoutSeconds(seconds int, fallback time.Duration) int {
+	if seconds <= 0 {
+		seconds = int(fallback / time.Second)
+	}
+	if seconds > maxGatewayTimeoutSeconds {
+		return maxGatewayTimeoutSeconds
+	}
+	return seconds
 }
 
 func copyGatewayHeaders(dst http.Header, src http.Header) {

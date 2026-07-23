@@ -11,6 +11,7 @@ import {
 } from "@/lib/image-model-capability";
 import { buildImageReferencePromptText } from "@/lib/image-reference-prompt";
 import { isServerAIEnabled, serverAIHeaders, serverAIUrl } from "@/services/api/server";
+import { cancelGenerationRun, createGenerationRun, getGenerationRunDetail, mediaObjectUrl, uploadMediaObject, type GenerationRunDetail } from "@/services/api/creative";
 import { imageToDataUrl } from "@/services/image-storage";
 import type { ReferenceImage } from "@/types/image";
 
@@ -129,6 +130,8 @@ const IMAGE_MAX_PIXELS = 8294400;
 const IMAGE_MAX_EDGE = 3840;
 const IMAGE_MAX_RATIO = 3;
 const IMAGE_OUTPUT_FORMAT = "png";
+const ASYNC_IMAGE_POLL_INTERVAL_MS = 2000;
+const ASYNC_IMAGE_WAIT_TIMEOUT_MS = 10 * 60 * 1000;
 
 function normalizeQuality(quality: string) {
     const value = quality.trim().toLowerCase();
@@ -628,6 +631,121 @@ function parseGeminiImagePayload(payload: GeminiPayload) {
     return images;
 }
 
+function buildImageRequestParams(config: AiConfig, requestConfig: AiConfig, count: number, options?: RequestOptions) {
+    const googleOptions = resolveImageRequestOptions(config, requestConfig.model, options);
+    const quality = googleOptions ? undefined : normalizeQuality(config.quality);
+    const requestSize = googleOptions ? undefined : resolveRequestSize(quality, config.size);
+    return {
+        n: count,
+        ...(googleOptions || {}),
+        ...(quality ? { quality } : {}),
+        ...(requestSize ? { size: requestSize } : {}),
+        response_format: "b64_json",
+        output_format: IMAGE_OUTPUT_FORMAT,
+    };
+}
+
+async function requestAsyncImageGeneration(requestConfig: AiConfig, prompt: string, references: ReferenceImage[], mask: ReferenceImage | undefined, params: Record<string, unknown>, options?: RequestOptions) {
+    let runId = "";
+    try {
+        const referenceMediaObjectIds = await Promise.all(references.map((image) => uploadGenerationReference(image)));
+        const maskMediaObjectId = mask ? (await uploadGenerationReference(mask)).id : "";
+        const run = await createGenerationRun({
+            referenceSetId: "",
+            ability: references.length || mask ? "image_edit" : "image_generation",
+            model: requestConfig.model,
+            prompt,
+            params: {
+                ...params,
+                referenceMediaObjectIds: referenceMediaObjectIds.map((item) => item.id),
+                ...(maskMediaObjectId ? { maskMediaObjectId } : {}),
+                reference_count: referenceMediaObjectIds.length + (maskMediaObjectId ? 1 : 0),
+            },
+        });
+        runId = run.id;
+        const detail = await waitForGenerationRun(run.id, options?.signal);
+        return await generationDetailToImages(detail, options?.signal);
+    } catch (error) {
+        if (runId && options?.signal?.aborted) {
+            void cancelGenerationRun(runId).catch(() => {});
+        }
+        throw error;
+    }
+}
+
+async function uploadGenerationReference(image: ReferenceImage) {
+    const dataUrl = await imageToDataUrl(image);
+    if (!dataUrl) throw new Error("参考图读取失败");
+    return uploadMediaObject(dataUrlToFile({ ...image, dataUrl }));
+}
+
+async function waitForGenerationRun(runId: string, signal?: AbortSignal) {
+    const startedAt = Date.now();
+    for (;;) {
+        throwIfAborted(signal);
+        const detail = await getGenerationRunDetail(runId);
+        if (detail.run.status === "succeeded") {
+            if (!detail.outputs.length) throw new Error("生成任务已完成，但没有返回图片");
+            return detail;
+        }
+        if (detail.run.status === "failed") {
+            throw new Error(detail.run.errorMessage || detail.job?.errorMessage || "生成失败");
+        }
+        if (detail.run.status === "canceled") {
+            throw new Error("生成已取消");
+        }
+        if (Date.now() - startedAt > ASYNC_IMAGE_WAIT_TIMEOUT_MS) {
+            throw new Error("生成任务等待超时，请稍后查看结果或重试");
+        }
+        await sleep(ASYNC_IMAGE_POLL_INTERVAL_MS, signal);
+    }
+}
+
+async function generationDetailToImages(detail: GenerationRunDetail, signal?: AbortSignal) {
+    const outputs = detail.outputs.filter((item) => item.status === "succeeded" && item.mediaObjectId);
+    const images = await Promise.all(outputs.map(async (output) => ({ id: output.id, dataUrl: await mediaObjectToDataUrl(output.mediaObjectId, signal) })));
+    if (!images.length) throw new Error("生成任务没有可读取的图片");
+    return images;
+}
+
+async function mediaObjectToDataUrl(mediaObjectId: string, signal?: AbortSignal) {
+    const response = await fetch(mediaObjectUrl(mediaObjectId), { credentials: "include", signal });
+    if (!response.ok) throw new Error(`读取生成图片失败：${response.status}`);
+    return blobToDataUrl(await response.blob());
+}
+
+function blobToDataUrl(blob: Blob) {
+    return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("读取图片失败"));
+        reader.readAsDataURL(blob);
+    });
+}
+
+function sleep(ms: number, signal?: AbortSignal) {
+    return new Promise<void>((resolve, reject) => {
+        throwIfAborted(signal);
+        let timer: ReturnType<typeof setTimeout>;
+        let cleanup = () => {};
+        const onAbort = () => {
+            clearTimeout(timer);
+            cleanup();
+            reject(new Error("请求已取消"));
+        };
+        cleanup = () => signal?.removeEventListener("abort", onAbort);
+        signal?.addEventListener("abort", onAbort, { once: true });
+        timer = setTimeout(() => {
+            cleanup();
+            resolve();
+        }, ms);
+    });
+}
+
+function throwIfAborted(signal?: AbortSignal) {
+    if (signal?.aborted) throw new Error("请求已取消");
+}
+
 export async function requestGeneration(config: AiConfig, prompt: string, options?: RequestOptions) {
     const requestConfig = resolveModelRequestConfig(config, config.model || config.imageModel);
     const n = Math.max(1, Math.min(15, Math.floor(Math.abs(Number(config.count)) || 1)));
@@ -638,21 +756,17 @@ export async function requestGeneration(config: AiConfig, prompt: string, option
             throw new Error(readAxiosError(error, "请求失败"));
         }
     }
-    const googleOptions = resolveImageRequestOptions(config, requestConfig.model, options);
-    const quality = googleOptions ? undefined : normalizeQuality(config.quality);
-    const requestSize = googleOptions ? undefined : resolveRequestSize(quality, config.size);
+    const requestParams = buildImageRequestParams(config, requestConfig, n, options);
     try {
+        if (isServerAIEnabled()) {
+            return await requestAsyncImageGeneration(requestConfig, withSystemPrompt(requestConfig, prompt), [], undefined, requestParams, options);
+        }
         const response = await axios.post<ImageApiResponse>(
             aiApiUrl(requestConfig, "/images/generations"),
             {
                 model: requestConfig.model,
                 prompt: withSystemPrompt(requestConfig, prompt),
-                n,
-                ...(googleOptions || {}),
-                ...(quality ? { quality } : {}),
-                ...(requestSize ? { size: requestSize } : {}),
-                response_format: "b64_json",
-                output_format: IMAGE_OUTPUT_FORMAT,
+                ...requestParams,
             },
             {
                 headers: aiHeaders(requestConfig, "application/json"),
@@ -680,26 +794,21 @@ export async function requestEdit(config: AiConfig, prompt: string, references: 
             throw new Error(readAxiosError(error, "请求失败"));
         }
     }
-    const googleOptions = resolveImageRequestOptions(config, requestConfig.model, options);
-    const quality = googleOptions ? undefined : normalizeQuality(config.quality);
-    const requestSize = googleOptions ? undefined : resolveRequestSize(quality, config.size);
+    const requestParams = buildImageRequestParams(config, requestConfig, n, options);
+    try {
+        if (isServerAIEnabled()) {
+            return await requestAsyncImageGeneration(requestConfig, withSystemPrompt(requestConfig, requestPrompt), supportedReferences, mask, requestParams, options);
+        }
+    } catch (error) {
+        throw new Error(readAxiosError(error, "请求失败"));
+    }
     const formData = new FormData();
     formData.set("model", requestConfig.model);
     formData.set("prompt", withSystemPrompt(requestConfig, requestPrompt));
-    formData.set("n", String(n));
-    formData.set("response_format", "b64_json");
-    formData.set("output_format", IMAGE_OUTPUT_FORMAT);
-    if (googleOptions?.resolution) formData.set("resolution", googleOptions.resolution);
-    if (googleOptions?.aspect_ratio) formData.set("aspect_ratio", googleOptions.aspect_ratio);
-    if (quality) {
-        formData.set("quality", quality);
-    }
-    if (requestSize) {
-        formData.set("size", requestSize);
-    }
+    Object.entries(requestParams).forEach(([key, value]) => formData.set(key, String(value)));
     const files = await Promise.all(supportedReferences.map(async (image) => dataUrlToFile({ ...image, dataUrl: await imageToDataUrl(image) })));
     files.forEach((file) => formData.append("image", file));
-    if (mask) formData.set("mask", dataUrlToFile(mask));
+    if (mask) formData.set("mask", dataUrlToFile({ ...mask, dataUrl: await imageToDataUrl(mask) }));
 
     try {
         const response = await axios.post<ImageApiResponse>(aiApiUrl(requestConfig, "/images/edits"), formData, { headers: aiHeaders(requestConfig), signal: options?.signal });

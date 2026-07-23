@@ -162,7 +162,7 @@ export type GenerationRunDetail = {
 
 export type CreateGenerationRunInput = {
     projectId?: string;
-    referenceSetId: string;
+    referenceSetId?: string;
     parentRunId?: string;
     ability: string;
     model: string;

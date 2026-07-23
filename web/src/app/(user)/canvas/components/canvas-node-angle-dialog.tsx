@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { Button, Modal, Segmented, Slider } from "antd";
 import { RotateCcw, WandSparkles } from "lucide-react";
 
+import type { AiConfig } from "@/stores/use-config-store";
+import { CanvasAiImageConfigControls } from "./canvas-ai-image-config-controls";
+
 export type CanvasImageAngleParams = {
     horizontalAngle: number;
     pitchAngle: number;
@@ -18,14 +21,18 @@ const defaultParams: CanvasImageAngleParams = {
     wideAngle: false,
 };
 
-export function CanvasNodeAngleDialog({ dataUrl, open, onClose, onConfirm }: { dataUrl: string; open: boolean; onClose: () => void; onConfirm: (params: CanvasImageAngleParams) => void }) {
+export function CanvasNodeAngleDialog({ dataUrl, open, initialConfig, onMissingConfig, onClose, onConfirm }: { dataUrl: string; open: boolean; initialConfig: AiConfig; onMissingConfig: () => void; onClose: () => void; onConfirm: (params: CanvasImageAngleParams, config: AiConfig) => void }) {
     const [params, setParams] = useState(defaultParams);
+    const [config, setConfig] = useState<AiConfig>({ ...initialConfig, count: "1" });
 
     useEffect(() => {
-        if (open) setParams(defaultParams);
+        if (!open) return;
+        setParams(defaultParams);
+        setConfig({ ...initialConfig, count: "1" });
     }, [dataUrl, open]);
 
     const update = <Key extends keyof CanvasImageAngleParams>(key: Key, value: CanvasImageAngleParams[Key]) => setParams((current) => ({ ...current, [key]: value }));
+    const updateConfig = (patch: Partial<AiConfig>) => setConfig((current) => ({ ...current, ...patch, count: "1" }));
 
     return (
         <Modal title={null} open={open && Boolean(dataUrl)} onCancel={onClose} footer={null} width={860} centered destroyOnHidden>
@@ -39,7 +46,6 @@ export function CanvasNodeAngleDialog({ dataUrl, open, onClose, onConfirm }: { d
                         <div className="grid flex-1 place-items-center">
                             <div className="relative">
                                 <img src={dataUrl} alt="" className="size-48 rounded-2xl object-cover shadow-2xl" draggable={false} style={{ transform: previewTransform(params) }} />
-                                <div className="absolute -bottom-6 left-1/2 h-10 w-24 -translate-x-1/2 rounded-full border bg-black/20 backdrop-blur" />
                             </div>
                         </div>
                         <Button className="w-fit" icon={<RotateCcw className="size-4" />} onClick={() => setParams(defaultParams)}>
@@ -62,10 +68,11 @@ export function CanvasNodeAngleDialog({ dataUrl, open, onClose, onConfirm }: { d
                                 onChange={(value) => update("wideAngle", value === "wide")}
                             />
                         </div>
+                        <CanvasAiImageConfigControls config={config} onConfigChange={updateConfig} onMissingConfig={onMissingConfig} />
                     </div>
                 </div>
                 <div className="flex justify-end">
-                    <Button type="primary" size="large" icon={<WandSparkles className="size-4" />} onClick={() => onConfirm(params)}>
+                    <Button type="primary" size="large" icon={<WandSparkles className="size-4" />} onClick={() => onConfirm(params, config)}>
                         AI 生成
                     </Button>
                 </div>

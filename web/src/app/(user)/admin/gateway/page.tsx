@@ -103,7 +103,7 @@ export default function AdminGatewayPage() {
                             </Form.Item>
                             <div className="grid gap-4 sm:grid-cols-2">
                                 <Form.Item label={t("admin.gateway.timeoutSeconds")} name="timeoutSeconds">
-                                    <InputNumber min={5} max={3600} className="w-full" />
+                                    <InputNumber min={5} max={600} className="w-full" />
                                 </Form.Item>
                                 <Form.Item label={t("common.status")} name="enabled" valuePropName="checked">
                                     <Switch checkedChildren={t("common.enabled")} unCheckedChildren={t("common.disabled")} />

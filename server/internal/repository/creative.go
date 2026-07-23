@@ -236,12 +236,16 @@ func (r *Repository) SaveGenerationJob(item *model.GenerationJob) error {
 func (r *Repository) ClaimGenerationJob(now time.Time) (model.GenerationJob, error) {
 	var job model.GenerationJob
 	err := r.DB.Transaction(func(tx *gorm.DB) error {
-		err := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
+		result := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
 			Where("status IN ? AND (next_retry_at IS NULL OR next_retry_at <= ?)", []string{"queued", "retrying"}, now).
 			Order("priority DESC, created_at ASC").
-			First(&job).Error
-		if err != nil {
-			return err
+			Limit(1).
+			Find(&job)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
 		}
 		job.Status = "running"
 		job.LockedAt = &now

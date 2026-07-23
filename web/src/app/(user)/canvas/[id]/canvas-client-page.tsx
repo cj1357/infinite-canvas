@@ -35,6 +35,7 @@ import { CanvasNodeAngleDialog, type CanvasImageAngleParams } from "../component
 import { CanvasNodeCropDialog, type CanvasImageCropRect } from "../components/canvas-node-crop-dialog";
 import { CanvasNodeMaskEditDialog, type CanvasImageMaskEditPayload } from "../components/canvas-node-mask-edit-dialog";
 import { CanvasNodeSplitDialog, type CanvasImageSplitParams } from "../components/canvas-node-split-dialog";
+import { CanvasNodeSuperResolveDialog } from "../components/canvas-node-super-resolve-dialog";
 import { CanvasNodeUpscaleDialog, type CanvasImageUpscaleParams } from "../components/canvas-node-upscale-dialog";
 import { buildNodeGenerationContext, buildNodeGenerationInputs, buildNodeResponseMessages, hydrateNodeGenerationContext, type NodeGenerationInput } from "../components/canvas-node-generation";
 import { CanvasNodeHoverToolbar, CanvasNodeInfoModal } from "../components/canvas-node-hover-toolbar";
@@ -1944,10 +1945,59 @@ function InfiniteCanvasPage() {
         setDialogNodeId(childId);
     }, []);
 
-    const generateAngleNode = useCallback(
-        async (node: CanvasNodeData, params: CanvasImageAngleParams) => {
+    const superResolveImageNode = useCallback(
+        async (node: CanvasNodeData, config: AiConfig) => {
             if (!node.metadata?.content) return;
-            const generationConfig = { ...buildGenerationConfig(effectiveConfig, node, "image"), count: "1" };
+            const generationConfig = { ...config, count: "1" };
+            if (!isAiConfigReady(generationConfig, generationConfig.model)) {
+                openConfigDialog(true);
+                return;
+            }
+            const childId = nanoid();
+            const source = { id: node.id, name: `${node.title || node.id}.png`, type: node.metadata.mimeType || "image/png", dataUrl: node.metadata.content, storageKey: node.metadata.storageKey };
+            const prompt = "请对参考图进行 AI 超分高清重绘。保持原图主体、构图、文字布局、品牌元素、画面比例和风格不变，只提升清晰度、纹理细节、边缘锐度和材质质感，不添加新主体，不改变内容。";
+            const generationMetadata = buildImageGenerationMetadata("edit", generationConfig, 1, [source]);
+            setSuperResolveNodeId(null);
+            setRunningNodeId(childId);
+            setNodes((prev) => [
+                ...prev,
+                {
+                    id: childId,
+                    type: CanvasNodeType.Image,
+                    title: "AI 超分图",
+                    position: { x: node.position.x + node.width + 96, y: node.position.y },
+                    width: node.width,
+                    height: node.height,
+                    metadata: { prompt, status: NODE_STATUS_LOADING, ...generationMetadata },
+                },
+            ]);
+            setConnections((prev) => [...prev, { id: nanoid(), fromNodeId: node.id, toNodeId: childId }]);
+            setSelectedNodeIds(new Set([childId]));
+            setSelectedConnectionId(null);
+            setDialogNodeId(childId);
+            const controller = startGenerationRequest(childId, node.id, childId);
+            try {
+                const image = await requestEdit(generationConfig, prompt, [source], undefined, await resolveCanvasImageRequestOptions(generationConfig, controller.signal)).then((items) => items[0]);
+                const uploaded = await uploadImage(image.dataUrl);
+                const size = fitNodeSize(uploaded.width, uploaded.height, node.width, node.height);
+                setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, width: size.width, height: size.height, metadata: { ...item.metadata, ...imageMetadata(uploaded), prompt, ...generationMetadata } } : item)));
+            } catch (error) {
+                if (isGenerationCanceled(error)) return;
+                const errorDetails = error instanceof Error ? error.message : "超分失败";
+                message.error(errorDetails);
+                setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails } } : item)));
+            } finally {
+                finishGenerationRequest(childId, controller);
+                setRunningNodeId(null);
+            }
+        },
+        [finishGenerationRequest, isAiConfigReady, message, openConfigDialog, startGenerationRequest],
+    );
+
+    const generateAngleNode = useCallback(
+        async (node: CanvasNodeData, params: CanvasImageAngleParams, config: AiConfig) => {
+            if (!node.metadata?.content) return;
+            const generationConfig = { ...config, count: "1" };
             if (!isAiConfigReady(generationConfig, generationConfig.model)) {
                 openConfigDialog(true);
                 return;
@@ -1993,7 +2043,7 @@ function InfiniteCanvasPage() {
                 setRunningNodeId(null);
             }
         },
-        [effectiveConfig, finishGenerationRequest, openConfigDialog, startGenerationRequest],
+        [finishGenerationRequest, isAiConfigReady, openConfigDialog, startGenerationRequest],
     );
 
     const handleFontSizeChange = useCallback((nodeId: string, fontSize: number) => {
@@ -2994,11 +3044,9 @@ function InfiniteCanvasPage() {
 
                 {upscaleNode?.metadata?.content ? <CanvasNodeUpscaleDialog dataUrl={upscaleNode.metadata.content} open={Boolean(upscaleNode)} onClose={() => setUpscaleNodeId(null)} onConfirm={(params) => void upscaleImageNode(upscaleNode!, params)} /> : null}
 
-                <Modal title="AI 超分" open={Boolean(superResolveNode?.metadata?.content)} centered footer={null} onCancel={() => setSuperResolveNodeId(null)}>
-                    <div className="py-8 text-center text-base font-medium">暂未实现</div>
-                </Modal>
+                {superResolveNode?.metadata?.content ? <CanvasNodeSuperResolveDialog dataUrl={superResolveNode.metadata.content} open={Boolean(superResolveNode)} initialConfig={{ ...buildGenerationConfig(effectiveConfig, superResolveNode, "image"), count: "1" }} onMissingConfig={() => openConfigDialog(true)} onClose={() => setSuperResolveNodeId(null)} onConfirm={(config) => void superResolveImageNode(superResolveNode!, config)} /> : null}
 
-                {angleNode?.metadata?.content ? <CanvasNodeAngleDialog dataUrl={angleNode.metadata.content} open={Boolean(angleNode)} onClose={() => setAngleNodeId(null)} onConfirm={(params) => void generateAngleNode(angleNode!, params)} /> : null}
+                {angleNode?.metadata?.content ? <CanvasNodeAngleDialog dataUrl={angleNode.metadata.content} open={Boolean(angleNode)} initialConfig={{ ...buildGenerationConfig(effectiveConfig, angleNode, "image"), count: "1" }} onMissingConfig={() => openConfigDialog(true)} onClose={() => setAngleNodeId(null)} onConfirm={(params, config) => void generateAngleNode(angleNode!, params, config)} /> : null}
 
                 <Modal
                     title="图片详情"

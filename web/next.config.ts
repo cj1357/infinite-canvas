@@ -25,14 +25,16 @@ export default function nextConfig(phase: string): NextConfig {
             NEXT_PUBLIC_APP_RELEASES: JSON.stringify(releases),
         },
         async rewrites() {
-            return serverApiUrl
-                ? [
-                      {
-                          source: "/api/server/:path*",
-                          destination: `${serverApiUrl}/api/server/:path*`,
-                      },
-                  ]
-                : [];
+            return {
+                fallback: serverApiUrl
+                    ? [
+                          {
+                              source: "/api/server/:path*",
+                              destination: `${serverApiUrl}/api/server/:path*`,
+                          },
+                      ]
+                    : [],
+            };
         },
     };
 }

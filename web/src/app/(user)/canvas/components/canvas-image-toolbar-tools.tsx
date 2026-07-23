@@ -38,7 +38,7 @@ export type ImageQuickToolsConfig = {
     showLabels: boolean;
 };
 
-export const IMAGE_QUICK_TOOLS_STORAGE_KEY = "canvas-image-quick-tools-v6";
+export const IMAGE_QUICK_TOOLS_STORAGE_KEY = "canvas-image-quick-tools-v7";
 
 const defaultBaseToolIds: ImageQuickToolId[] = ["info", "delete", "saveAsset", "download", "edit"];
 
@@ -118,7 +118,7 @@ export const imageToolDefinitions: ImageToolDefinition[] = [
     },
     {
         id: "superResolve",
-        defaultVisible: false,
+        defaultVisible: true,
         panelLabel: "超分",
         label: "超分",
         title: "AI 超分",
@@ -127,7 +127,7 @@ export const imageToolDefinitions: ImageToolDefinition[] = [
     },
     {
         id: "angle",
-        defaultVisible: false,
+        defaultVisible: true,
         panelLabel: "多角度",
         label: "多角度",
         title: "生成角度",

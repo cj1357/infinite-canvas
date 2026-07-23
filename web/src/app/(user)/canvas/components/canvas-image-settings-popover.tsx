@@ -22,9 +22,11 @@ type CanvasImageSettingsPopoverProps = {
     getPopupContainer?: (triggerNode: HTMLElement) => HTMLElement;
     placement?: "topLeft" | "top" | "topRight" | "bottomLeft" | "bottom" | "bottomRight";
     autoAdjustOverflow?: boolean;
+    maxCount?: number;
+    quickCount?: number;
 };
 
-export function CanvasImageSettingsPopover({ config, onConfigChange, onOpenChange, buttonClassName, placement = "topLeft" }: CanvasImageSettingsPopoverProps) {
+export function CanvasImageSettingsPopover({ config, onConfigChange, onOpenChange, buttonClassName, placement = "topLeft", maxCount, quickCount }: CanvasImageSettingsPopoverProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const buttonRef = useRef<HTMLSpanElement>(null);
     const panelRef = useRef<HTMLDivElement>(null);
@@ -76,7 +78,7 @@ export function CanvasImageSettingsPopover({ config, onConfigChange, onOpenChang
         };
     }, [onOpenChange, open]);
 
-    const panel = open && buttonRect ? <ImageSettingsPortal buttonRect={buttonRect} panelRef={panelRef} placement={placement} theme={theme} config={config} capability={capability} capabilityLoading={capabilityQuery.isFetching} capabilityError={capabilityQuery.error} retryCapability={() => void capabilityQuery.refetch()} onConfigChange={onConfigChange} /> : null;
+    const panel = open && buttonRect ? <ImageSettingsPortal buttonRect={buttonRect} panelRef={panelRef} placement={placement} theme={theme} config={config} capability={capability} capabilityLoading={capabilityQuery.isFetching} capabilityError={capabilityQuery.error} retryCapability={() => void capabilityQuery.refetch()} onConfigChange={onConfigChange} maxCount={maxCount} quickCount={quickCount} /> : null;
 
     return (
         <>
@@ -103,6 +105,8 @@ function ImageSettingsPortal({
     capabilityError,
     retryCapability,
     onConfigChange,
+    maxCount,
+    quickCount,
 }: {
     buttonRect: DOMRect;
     panelRef: RefObject<HTMLDivElement | null>;
@@ -114,6 +118,8 @@ function ImageSettingsPortal({
     capabilityError: Error | null;
     retryCapability: () => void;
     onConfigChange: (key: keyof AiConfig, value: string) => void;
+    maxCount?: number;
+    quickCount?: number;
 }) {
     const width = 356;
     const gap = 8;
@@ -156,7 +162,7 @@ function ImageSettingsPortal({
                     <Button size="small" onClick={retryCapability}>重试</Button>
                 </div>
             ) : (
-                <ImageSettingsPanel config={config} capability={capability} onConfigChange={(key, value) => onConfigChange(key, value)} theme={theme} className="space-y-4" limitCountByCapability={false} />
+                <ImageSettingsPanel config={config} capability={capability} onConfigChange={(key, value) => onConfigChange(key, value)} theme={theme} className="space-y-4" maxCount={maxCount} quickCount={quickCount} limitCountByCapability={false} />
             )}
         </div>,
         document.body,

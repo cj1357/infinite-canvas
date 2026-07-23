@@ -8,27 +8,27 @@ import (
 )
 
 type Config struct {
-	Addr                string
-	AppEnv              string
-	DatabaseURL         string
-	CookieName          string
-	CookieDomain        string
-	CookieSecure        bool
-	SessionTTL          time.Duration
-	CORSOrigins         []string
-	BootstrapAdminEmail string
-	ModelGatewayProvider string
-	ModelGatewayBaseURL string
+	Addr                    string
+	AppEnv                  string
+	DatabaseURL             string
+	CookieName              string
+	CookieDomain            string
+	CookieSecure            bool
+	SessionTTL              time.Duration
+	CORSOrigins             []string
+	BootstrapAdminEmail     string
+	ModelGatewayProvider    string
+	ModelGatewayBaseURL     string
 	ModelGatewayInternalURL string
-	ModelGatewayToken string
-	ModelGatewayTimeout time.Duration
-	StorageProvider     string
-	MaxUploadBytes      int64
-	WorkerEnabled       bool
-	WorkerConcurrency   int
-	WorkerPollSeconds   int
-	DefaultLocale        string
-	Storage             StorageConfig
+	ModelGatewayToken       string
+	ModelGatewayTimeout     time.Duration
+	StorageProvider         string
+	MaxUploadBytes          int64
+	WorkerEnabled           bool
+	WorkerConcurrency       int
+	WorkerPollSeconds       int
+	DefaultLocale           string
+	Storage                 StorageConfig
 }
 
 type StorageConfig struct {
@@ -48,26 +48,26 @@ func Load() Config {
 	storageProvider := strings.ToLower(env("STORAGE_PROVIDER", "local"))
 	maxUploadBytes := int64Env("MAX_UPLOAD_BYTES", 50*1024*1024)
 	return Config{
-		Addr:                env("SERVER_ADDR", ":8080"),
-		AppEnv:              env("APP_ENV", "development"),
-		DatabaseURL:         env("DATABASE_URL", ""),
-		CookieName:          env("SESSION_COOKIE_NAME", "ic_session"),
-		CookieDomain:        env("SESSION_COOKIE_DOMAIN", ""),
-		CookieSecure:        boolEnv("SESSION_COOKIE_SECURE", false),
-		SessionTTL:          time.Duration(sessionDays) * 24 * time.Hour,
-		CORSOrigins:         csvEnv("CORS_ORIGINS"),
-		BootstrapAdminEmail: strings.ToLower(strings.TrimSpace(env("BOOTSTRAP_ADMIN_EMAIL", ""))),
-		ModelGatewayProvider: strings.ToLower(env("MODEL_GATEWAY_PROVIDER", "newapi")),
-		ModelGatewayBaseURL: strings.TrimRight(env("MODEL_GATEWAY_BASE_URL", ""), "/"),
+		Addr:                    env("SERVER_ADDR", ":8080"),
+		AppEnv:                  env("APP_ENV", "development"),
+		DatabaseURL:             env("DATABASE_URL", ""),
+		CookieName:              env("SESSION_COOKIE_NAME", "ic_session"),
+		CookieDomain:            env("SESSION_COOKIE_DOMAIN", ""),
+		CookieSecure:            boolEnv("SESSION_COOKIE_SECURE", false),
+		SessionTTL:              time.Duration(sessionDays) * 24 * time.Hour,
+		CORSOrigins:             csvEnv("CORS_ORIGINS"),
+		BootstrapAdminEmail:     strings.ToLower(strings.TrimSpace(env("BOOTSTRAP_ADMIN_EMAIL", ""))),
+		ModelGatewayProvider:    strings.ToLower(env("MODEL_GATEWAY_PROVIDER", "newapi")),
+		ModelGatewayBaseURL:     strings.TrimRight(env("MODEL_GATEWAY_BASE_URL", ""), "/"),
 		ModelGatewayInternalURL: strings.TrimRight(env("MODEL_GATEWAY_INTERNAL_URL", ""), "/"),
-		ModelGatewayToken: env("MODEL_GATEWAY_TOKEN", ""),
-		ModelGatewayTimeout: time.Duration(gatewayTimeoutSeconds) * time.Second,
-		StorageProvider:     storageProvider,
-		MaxUploadBytes:      maxUploadBytes,
-		WorkerEnabled:       boolEnv("WORKER_ENABLED", false),
-		WorkerConcurrency:   intEnv("WORKER_CONCURRENCY", 1),
-		WorkerPollSeconds:   intEnv("WORKER_POLL_SECONDS", 3),
-		DefaultLocale:        env("DEFAULT_LOCALE", "zh-CN"),
+		ModelGatewayToken:       env("MODEL_GATEWAY_TOKEN", ""),
+		ModelGatewayTimeout:     time.Duration(gatewayTimeoutSeconds) * time.Second,
+		StorageProvider:         storageProvider,
+		MaxUploadBytes:          maxUploadBytes,
+		WorkerEnabled:           boolEnv("WORKER_ENABLED", true),
+		WorkerConcurrency:       intEnv("WORKER_CONCURRENCY", 1),
+		WorkerPollSeconds:       intEnv("WORKER_POLL_SECONDS", 3),
+		DefaultLocale:           env("DEFAULT_LOCALE", "zh-CN"),
 		Storage: StorageConfig{
 			Provider:        storageProvider,
 			LocalDir:        env("LOCAL_STORAGE_DIR", "data/media"),
