@@ -418,6 +418,12 @@ async function requestStreamingResponse(config: AiConfig, body: Record<string, u
         signal: options?.signal,
     });
     if (!response.ok) throw new Error(await readFetchError(response, "请求失败"));
+    const contentType = response.headers.get("Content-Type")?.toLowerCase() || "";
+    if (contentType && !contentType.includes("text/event-stream")) {
+        const payload = (await response.json()) as ResponseApiPayload;
+        validateResponsePayload(payload);
+        return parseToolResponse(payload);
+    }
     if (!response.body) {
         const payload = (await response.json()) as ResponseApiPayload;
         validateResponsePayload(payload);
