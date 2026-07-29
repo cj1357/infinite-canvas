@@ -6,18 +6,19 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { BookOpen, Bot, Home, ImageIcon, Images, List, Menu, Music2, Plus, Redo2, Settings2, Trash2, Undo2, Upload, Video } from "lucide-react";
 import { saveAs } from "file-saver";
 
-import { requestEdit, requestGeneration, requestImageQuestion } from "@/services/api/image";
+import { buildImageRequestParams, requestEdit, requestGeneration, requestImageQuestion } from "@/services/api/image";
 import { requestAudioGeneration, storeGeneratedAudio } from "@/services/api/audio";
 import { requestVideoGeneration, storeGeneratedVideo } from "@/services/api/video";
 import { DOCS_URL } from "@/constant/env";
 import { useI18n } from "@/i18n/use-i18n";
-import { defaultConfig, modelOptionName, type AiConfig, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
-import { resolveImageUrl, uploadImage, type UploadedImage } from "@/services/image-storage";
+import { defaultConfig, modelOptionName, resolveModelRequestConfig, type AiConfig, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
+import { imageToDataUrl, resolveImageUrl, uploadImage, type UploadedImage } from "@/services/image-storage";
 import { resolveImageModelCapability } from "@/services/api/model-capabilities";
 import { resolveMediaUrl, uploadMediaFile, type UploadedFile } from "@/services/file-storage";
 import { useUserStore } from "@/stores/use-user-store";
 import { nanoid } from "nanoid";
-import { getDataUrlByteSize, readImageMeta } from "@/lib/image-utils";
+import { dataUrlToFile, getDataUrlByteSize, readImageMeta } from "@/lib/image-utils";
+import { imageReferencesForCapability } from "@/lib/image-model-capability";
 import { canvasThemes, type CanvasBackgroundMode } from "@/lib/canvas-theme";
 import { UserStatusActions } from "@/components/layout/user-status-actions";
 import { useAssetStore } from "@/stores/use-asset-store";
@@ -56,7 +57,7 @@ import { applyCanvasAgentOps, type CanvasAgentOp, type CanvasAgentSnapshot } fro
 import { buildCanvasResourceReferences, buildNodeMentionReferences } from "../utils/canvas-resource-references";
 import { CANVAS_NODE_TOOLBAR_HIDE_DELAY_MS, resolveCanvasToolbarNodeId } from "../utils/canvas-toolbar-state";
 import type { CanvasAgentMode } from "../components/canvas-agent-chat-ui";
-import { cancelGenerationRun, createGenerationRun, getGenerationRunDetail, mediaObjectUrl, retryGenerationRun, saveGenerationOutputAsAsset, type GenerationOutput, type GenerationRunDetail, type ReferenceIntent, type ReferenceSetDetail } from "@/services/api/creative";
+import { cancelGenerationRun, createGenerationRun, getGenerationRunDetail, mediaObjectUrl, retryGenerationRun, saveGenerationOutputAsAsset, uploadMediaObject, type GenerationOutput, type GenerationRunDetail, type ReferenceIntent, type ReferenceSetDetail } from "@/services/api/creative";
 import {
     CanvasNodeType,
     type CanvasAssistantImage,
@@ -708,7 +709,10 @@ function InfiniteCanvasPage() {
                     nodes
                         .filter((node) => node.type === CanvasNodeType.Generation && node.metadata?.generationRunId)
                         .filter((node) => {
-                            const status = generationDetailsByRunId[node.metadata!.generationRunId!]?.run.status || node.metadata?.status;
+                            const runId = node.metadata!.generationRunId!;
+                            const runDetail = generationDetailsByRunId[runId];
+                            if (!runDetail) return true;
+                            const status = runDetail.run.status || node.metadata?.status;
                             return status === "queued" || status === "running" || status === "retrying" || status === "loading";
                         })
                         .map((node) => node.metadata!.generationRunId!),
@@ -766,7 +770,7 @@ function InfiniteCanvasPage() {
     const configInputsById = useMemo(() => {
         const map = new Map<string, NodeGenerationInput[]>();
         nodes.forEach((node) => {
-            if (node.type !== CanvasNodeType.Config) return;
+            if (node.type !== CanvasNodeType.Config && node.type !== CanvasNodeType.Generation) return;
             map.set(node.id, buildNodeGenerationInputs(node.id, nodes, connections));
         });
         return map;
@@ -1644,21 +1648,35 @@ function InfiniteCanvasPage() {
 
     const handleCreateGenerationRun = useCallback(
         async (node: CanvasNodeData) => {
-            const prompt = (node.metadata?.prompt || node.metadata?.content || "").trim();
-            const referenceSetId = node.metadata?.referenceSetId || "";
-            if (!prompt || !referenceSetId) {
-                message.warning(!referenceSetId ? t("generation.node.noReferenceSet") : t("generation.node.promptRequired"));
+            const basePrompt = node.metadata?.prompt || node.metadata?.content || "";
+            const context = buildNodeGenerationContext(node.id, nodesRef.current, connectionsRef.current, basePrompt);
+            const prompt = context.prompt.trim();
+            if (!prompt) {
+                message.warning(t("generation.node.promptRequired"));
                 return;
             }
             try {
-                handleConfigNodeChange(node.id, { status: "loading" });
+                const referenceSetId = node.metadata?.referenceSetId || resolveGenerationTaskReferenceSetId(node.id, nodesRef.current, connectionsRef.current);
+                const generationConfig = buildGenerationConfig(effectiveConfig, node, "image");
+                const imageRequestOptions = await resolveCanvasImageRequestOptions(generationConfig, new AbortController().signal);
+                if (referenceSetId && imageRequestOptions.imageCapability && !imageRequestOptions.imageCapability.supportsReferences) throw new Error("当前模型不支持参考图");
+                const supportedReferenceImages = imageRequestOptions.imageCapability ? imageReferencesForCapability(imageRequestOptions.imageCapability, context.referenceImages) : context.referenceImages;
+                const hydratedContext = await hydrateNodeGenerationContext({ ...context, referenceImages: supportedReferenceImages });
+                const referenceMediaObjectIds = await uploadGenerationTaskReferences(hydratedContext.referenceImages);
+                const requestConfig = resolveModelRequestConfig(generationConfig, generationConfig.model || generationConfig.imageModel);
+                const count = getGenerationCount(generationConfig.count);
+                const params = {
+                    ...buildImageRequestParams(generationConfig, requestConfig, count, imageRequestOptions),
+                    ...(referenceMediaObjectIds.length ? { referenceMediaObjectIds } : {}),
+                };
+                handleConfigNodeChange(node.id, { status: "loading", model: requestConfig.model, quality: generationConfig.quality, size: generationConfig.size, count });
                 const run = await createGenerationRun({
                     projectId,
                     referenceSetId,
-                    ability: "image_generation",
-                    model: node.metadata?.model || "default",
+                    ability: referenceSetId || referenceMediaObjectIds.length ? "image_edit" : "image_generation",
+                    model: requestConfig.model,
                     prompt,
-                    params: { n: node.metadata?.count || 1, size: node.metadata?.size },
+                    params,
                 });
                 handleConfigNodeChange(node.id, { generationRunId: run.id, status: "loading" });
                 await loadGenerationDetail(run.id);
@@ -1667,7 +1685,7 @@ function InfiniteCanvasPage() {
                 message.error(error instanceof Error ? error.message : t("generation.node.createFailed"));
             }
         },
-        [handleConfigNodeChange, loadGenerationDetail, message, projectId, t],
+        [effectiveConfig, handleConfigNodeChange, loadGenerationDetail, message, projectId, t],
     );
 
     const handleRetryGenerationRun = useCallback(
@@ -2888,6 +2906,7 @@ function InfiniteCanvasPage() {
                                         node={contentNode}
                                         detail={contentNode.metadata?.generationRunId ? generationDetailsByRunId[contentNode.metadata.generationRunId] : null}
                                         referenceSets={referenceSetOptions}
+                                        inputSummary={getInputSummary(configInputsById.get(contentNode.id) || [])}
                                         onPatch={handleConfigNodeChange}
                                         onGenerate={handleCreateGenerationRun}
                                         onRetry={handleRetryGenerationRun}
@@ -3536,6 +3555,26 @@ function sourceNodeReferenceImages(node: CanvasNodeData | null) {
             storageKey: node.metadata.storageKey,
         },
     ];
+}
+
+function resolveGenerationTaskReferenceSetId(nodeId: string, nodes: CanvasNodeData[], connections: CanvasConnection[]) {
+    return (
+        connections
+            .filter((connection) => connection.toNodeId === nodeId)
+            .map((connection) => nodes.find((item) => item.id === connection.fromNodeId))
+            .find((node) => node?.type === CanvasNodeType.ReferenceSet && node.metadata?.referenceSetId)?.metadata?.referenceSetId || ""
+    );
+}
+
+async function uploadGenerationTaskReferences(references: ReferenceImage[]) {
+    if (!references.length) return [];
+    return Promise.all(
+        references.map(async (image) => {
+            const dataUrl = image.dataUrl?.startsWith("data:") ? image.dataUrl : await imageToDataUrl(image);
+            if (!dataUrl) throw new Error("参考图读取失败");
+            return (await uploadMediaObject(dataUrlToFile({ ...image, dataUrl }))).id;
+        }),
+    );
 }
 
 function isAudioFile(file: File) {

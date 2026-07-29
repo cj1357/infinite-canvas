@@ -40,6 +40,44 @@ func TestGenerationRequestPayloadStripsInternalAsyncFieldsAndAddsProvider(t *tes
 	}
 }
 
+func TestGenerationRequestPayloadsSplitReferenceBatchIntoSingleRequests(t *testing.T) {
+	payload := map[string]any{
+		"model":            "google/gemini-3.1-flash-image",
+		"prompt":           "生成商品图",
+		"n":                float64(3),
+		"input_references": []map[string]any{{"type": "image_url"}},
+	}
+	requests := generationRequestPayloads(payload)
+
+	if len(requests) != 3 {
+		t.Fatalf("expected 3 single-image requests, got %d", len(requests))
+	}
+	if payload["n"] != float64(3) {
+		t.Fatalf("original payload should not be mutated: %#v", payload)
+	}
+	for index, request := range requests {
+		if request["n"] != 1 {
+			t.Fatalf("request %d should be clamped to one image: %#v", index+1, request)
+		}
+		if request["input_references"] == nil {
+			t.Fatalf("request %d lost references: %#v", index+1, request)
+		}
+	}
+}
+
+func TestGenerationRequestPayloadsKeepPlainBatchTogether(t *testing.T) {
+	payload := map[string]any{
+		"model":  "google/gemini-3.1-flash-image",
+		"prompt": "生成商品图",
+		"n":      float64(3),
+	}
+	requests := generationRequestPayloads(payload)
+
+	if len(requests) != 1 || requests[0]["n"] != float64(3) {
+		t.Fatalf("plain image generation batch should stay unchanged: %#v", requests)
+	}
+}
+
 func TestGenerationReferenceCountIncludesAsyncMediaAndMask(t *testing.T) {
 	params := map[string]any{
 		"referenceMediaObjectIds": []any{"media-1", "media-2"},

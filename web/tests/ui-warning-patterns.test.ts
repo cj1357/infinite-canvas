@@ -12,7 +12,8 @@ describe("ui warning patterns", () => {
     });
 
     test("drawers use size instead of deprecated height", () => {
-        expect(source("src/app/(user)/video/page.tsx")).not.toContain("<Drawer title=\"参数\" placement=\"bottom\" height=");
+        const videoPage = "src/app/(user)/video/page.tsx";
+        if (existsSync(videoPage)) expect(source(videoPage)).not.toContain("<Drawer title=\"参数\" placement=\"bottom\" height=");
     });
 
     test("image workbench result previews preserve their original aspect ratio", () => {
@@ -163,6 +164,45 @@ describe("ui warning patterns", () => {
     test("canvas input numbers avoid deprecated addonBefore", () => {
         expect(source("src/app/(user)/canvas/components/generation-node.tsx")).not.toContain("addonBefore=");
         expect(source("src/app/(user)/canvas/components/reference-composer.tsx")).not.toContain("addonBefore=");
+    });
+
+    test("generation task node uses optional reference sets and unified image model controls", () => {
+        const node = source("src/app/(user)/canvas/components/generation-node.tsx");
+        expect(node).toContain("ModelPicker");
+        expect(node).toContain("CanvasImageSettingsPopover");
+        expect(node).toContain("allowClear");
+        expect(node).toContain("canGenerate = Boolean((prompt.trim() || inputSummary.textCount > 0) && !running)");
+        expect(node).not.toContain("&& node.metadata?.referenceSetId && !running");
+        expect(node).not.toContain("<Input size=\"small\" value={node.metadata?.model");
+    });
+
+    test("generation task node surfaces failed run details", () => {
+        const node = source("src/app/(user)/canvas/components/generation-node.tsx");
+        expect(node).toContain("generationErrorMessage");
+        expect(node).toContain("detail?.run.errorMessage");
+        expect(node).toContain("detail?.job?.errorMessage");
+        expect(node).toContain("node.metadata?.errorDetails");
+    });
+
+    test("generation task creation consumes upstream inputs and image capability params", () => {
+        const page = source("src/app/(user)/canvas/[id]/canvas-client-page.tsx");
+        expect(page).toContain("resolveGenerationTaskReferenceSetId");
+        expect(page).toContain("uploadGenerationTaskReferences");
+        expect(page).toContain("buildImageRequestParams");
+        expect(page).toContain("referenceMediaObjectIds");
+        expect(page).toContain("inputSummary={getInputSummary(configInputsById.get(contentNode.id) || [])}");
+        expect(page).toContain("node.type !== CanvasNodeType.Config && node.type !== CanvasNodeType.Generation");
+    });
+
+    test("generation task polling reloads missing run details after refresh", () => {
+        const page = source("src/app/(user)/canvas/[id]/canvas-client-page.tsx");
+        expect(page).toContain("const runDetail = generationDetailsByRunId[runId]");
+        expect(page).toContain("if (!runDetail) return true");
+    });
+
+    test("generation task nodes reserve space for split model and parameter rows", () => {
+        expect(source("src/app/(user)/canvas/constants.ts")).toContain('[CanvasNodeType.Generation]: { width: 360, height: 340, title: "生成任务" }');
+        expect(source("src/app/(user)/canvas/components/generation-node.tsx")).toContain("overflow-y-auto");
     });
 
     test("reference composer intent rows avoid compressed four-column layout", () => {

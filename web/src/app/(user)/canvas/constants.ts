@@ -12,7 +12,7 @@ export const NODE_DEFAULT_SIZE = {
     [CanvasNodeType.Media]: { width: 340, height: 240, title: "媒体" },
     [CanvasNodeType.Prompt]: { width: 340, height: 220, title: "提示词" },
     [CanvasNodeType.ReferenceSet]: { width: 360, height: 260, title: "参考图组" },
-    [CanvasNodeType.Generation]: { width: 360, height: 260, title: "生成任务" },
+    [CanvasNodeType.Generation]: { width: 360, height: 340, title: "生成任务" },
     [CanvasNodeType.ResultGroup]: { width: 420, height: 300, title: "结果组" },
     [CanvasNodeType.Note]: { width: 300, height: 180, title: "便签" },
     [CanvasNodeType.Image]: { width: 340, height: 240, title: "New Generation" },

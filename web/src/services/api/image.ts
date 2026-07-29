@@ -98,7 +98,7 @@ type GeminiPayload = {
     promptFeedback?: { blockReason?: string };
 };
 type GeminiStreamState = { buffer: string; text: string; toolCalls: ResponseToolCall[]; error?: string };
-type RequestOptions = {
+export type RequestOptions = {
     signal?: AbortSignal;
     imageCapability?: ImageModelCapability;
 };
@@ -637,7 +637,7 @@ function parseGeminiImagePayload(payload: GeminiPayload) {
     return images;
 }
 
-function buildImageRequestParams(config: AiConfig, requestConfig: AiConfig, count: number, options?: RequestOptions) {
+export function buildImageRequestParams(config: AiConfig, requestConfig: AiConfig, count: number, options?: RequestOptions) {
     const googleOptions = resolveImageRequestOptions(config, requestConfig.model, options);
     const quality = googleOptions ? undefined : normalizeQuality(config.quality);
     const requestSize = googleOptions ? undefined : resolveRequestSize(quality, config.size);

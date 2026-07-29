@@ -205,30 +205,42 @@ func (s *GenerationService) ExecuteGenerationJob(ctx context.Context, job model.
 	if err != nil {
 		return s.failJob(ctx, run, job, "error.request.failed", err.Error(), nil)
 	}
-	requestBody, _ := json.Marshal(requestPayload)
-	job.RequestJSON = mustJSON(redactGenerationRequestPayload(requestPayload))
+	requestPayloads := generationRequestPayloads(requestPayload)
+	job.RequestJSON = mustJSON(redactGenerationRequestPayloadBatch(requestPayload, requestPayloads))
 	if err := s.repo.SaveGenerationJob(&job); err != nil {
 		return err
 	}
-	resp, err := s.gateway.Proxy(ctx, http.MethodPost, "/images/generations", http.Header{"Content-Type": []string{"application/json"}}, requestBody)
-	if err != nil {
-		return s.failJob(ctx, run, job, "error.gateway.failed", err.Error(), nil)
-	}
-	defer resp.Body.Close()
-	payload, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<20))
-	if resp.StatusCode >= 400 {
-		return s.failJob(ctx, run, job, "error.gateway.failed", string(payload), payload)
-	}
-	outputs, err := s.persistGenerationOutputs(ctx, run, payload)
-	if err != nil {
-		return s.failJob(ctx, run, job, "error.storage.failed", err.Error(), payload)
+
+	responsePayloads := make([][]byte, 0, len(requestPayloads))
+	outputs := []model.GenerationOutput{}
+	gatewayRequestID := ""
+	for _, payload := range requestPayloads {
+		requestBody, _ := json.Marshal(payload)
+		resp, err := s.gateway.Proxy(ctx, http.MethodPost, "/images/generations", http.Header{"Content-Type": []string{"application/json"}}, requestBody)
+		if err != nil {
+			return s.failJob(ctx, run, job, "error.gateway.failed", err.Error(), nil)
+		}
+		responsePayload, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<20))
+		_ = resp.Body.Close()
+		if resp.StatusCode >= 400 {
+			return s.failJob(ctx, run, job, "error.gateway.failed", string(responsePayload), responsePayload)
+		}
+		requestOutputs, err := s.persistGenerationOutputs(ctx, run, responsePayload, len(outputs))
+		if err != nil {
+			return s.failJob(ctx, run, job, "error.storage.failed", err.Error(), responsePayload)
+		}
+		if gatewayRequestID == "" {
+			gatewayRequestID = resp.Header.Get("x-request-id")
+		}
+		responsePayloads = append(responsePayloads, responsePayload)
+		outputs = append(outputs, requestOutputs...)
 	}
 	now := time.Now()
 	run.Status = "succeeded"
 	run.SettledCredits = run.ReservedCredits
-	run.GatewayRequestID = resp.Header.Get("x-request-id")
+	run.GatewayRequestID = gatewayRequestID
 	run.GatewayModel = run.Model
-	responseLogJSON := redactGenerationResponsePayload(payload)
+	responseLogJSON := redactGenerationResponsePayloads(responsePayloads)
 	run.GatewayUsageJSON = responseLogJSON
 	job.Status = "succeeded"
 	job.FinishedAt = &now
@@ -266,7 +278,7 @@ func (s *GenerationService) failJob(ctx context.Context, run model.GenerationRun
 	return s.repo.SaveGenerationJob(&job)
 }
 
-func (s *GenerationService) persistGenerationOutputs(ctx context.Context, run model.GenerationRun, payload []byte) ([]model.GenerationOutput, error) {
+func (s *GenerationService) persistGenerationOutputs(ctx context.Context, run model.GenerationRun, payload []byte, startIndex int) ([]model.GenerationOutput, error) {
 	var parsed struct {
 		Data []struct {
 			URL     string `json:"url"`
@@ -282,7 +294,7 @@ func (s *GenerationService) persistGenerationOutputs(ctx context.Context, run mo
 		if err != nil {
 			return outputs, err
 		}
-		media, err := s.media.SaveBytes(ctx, run.UserID, "image", fmt.Sprintf("generation-%s-%d.png", run.ID, index+1), mimeType, data, "")
+		media, err := s.media.SaveBytes(ctx, run.UserID, "image", fmt.Sprintf("generation-%s-%d.png", run.ID, startIndex+index+1), mimeType, data, "")
 		if err != nil {
 			return outputs, err
 		}
@@ -404,6 +416,30 @@ func generationRequestPayload(run model.GenerationRun) map[string]any {
 	return params
 }
 
+func generationRequestPayloads(payload map[string]any) []map[string]any {
+	count := int(firstNumberParam(payload, "n"))
+	if count <= 1 || !hasGenerationInputReferences(payload) {
+		return []map[string]any{payload}
+	}
+	requests := make([]map[string]any, 0, count)
+	for range count {
+		request := cloneParams(payload)
+		request["n"] = 1
+		requests = append(requests, request)
+	}
+	return requests
+}
+
+func hasGenerationInputReferences(payload map[string]any) bool {
+	switch references := payload["input_references"].(type) {
+	case []map[string]any:
+		return len(references) > 0
+	case []any:
+		return len(references) > 0
+	}
+	return false
+}
+
 func stripGenerationInternalParams(params map[string]any) {
 	for _, key := range []string{"referenceMediaObjectIds", "maskMediaObjectId", "reference_count", "referenceCount", "references"} {
 		delete(params, key)
@@ -416,6 +452,16 @@ func redactGenerationRequestPayload(params map[string]any) map[string]any {
 		redacted["input_references"] = map[string]any{"count": len(references)}
 	} else if references, ok := params["input_references"].([]any); ok {
 		redacted["input_references"] = map[string]any{"count": len(references)}
+	}
+	return redacted
+}
+
+func redactGenerationRequestPayloadBatch(original map[string]any, requests []map[string]any) map[string]any {
+	redacted := redactGenerationRequestPayload(original)
+	if len(requests) > 1 {
+		redacted["n"] = 1
+		redacted["requested_n"] = int(firstNumberParam(original, "n"))
+		redacted["split_requests"] = len(requests)
 	}
 	return redacted
 }
@@ -438,6 +484,24 @@ func redactGenerationResponsePayload(payload []byte) datatypes.JSON {
 		}
 	}
 	return mustJSON(data)
+}
+
+func redactGenerationResponsePayloads(payloads [][]byte) datatypes.JSON {
+	if len(payloads) == 0 {
+		return datatypes.JSON([]byte("{}"))
+	}
+	if len(payloads) == 1 {
+		return redactGenerationResponsePayload(payloads[0])
+	}
+	responses := make([]any, 0, len(payloads))
+	for _, payload := range payloads {
+		var response any
+		if err := json.Unmarshal(redactGenerationResponsePayload(payload), &response); err != nil {
+			response = map[string]any{"raw": string(bytes.TrimSpace(payload))}
+		}
+		responses = append(responses, response)
+	}
+	return mustJSON(map[string]any{"splitResponses": responses})
 }
 
 func generationReferenceMediaObjectIDs(run model.GenerationRun) []string {
