@@ -103,6 +103,12 @@ export type RequestOptions = {
     imageCapability?: ImageModelCapability;
 };
 
+export type AsyncImageRunOptions = RequestOptions & {
+    projectId?: string;
+    referenceSetId?: string;
+    parentRunId?: string;
+};
+
 const QUALITY_BASE: Record<string, number> = {
     low: 1024,
     medium: 2048,
@@ -651,14 +657,16 @@ export function buildImageRequestParams(config: AiConfig, requestConfig: AiConfi
     };
 }
 
-async function requestAsyncImageGeneration(requestConfig: AiConfig, prompt: string, references: ReferenceImage[], mask: ReferenceImage | undefined, params: Record<string, unknown>, options?: RequestOptions) {
+async function requestAsyncImageGeneration(requestConfig: AiConfig, prompt: string, references: ReferenceImage[], mask: ReferenceImage | undefined, params: Record<string, unknown>, options?: RequestOptions, runOptions?: { projectId?: string; referenceSetId?: string; parentRunId?: string }) {
     let runId = "";
     try {
         const referenceMediaObjectIds = await Promise.all(references.map((image) => uploadGenerationReference(image)));
         const maskMediaObjectId = mask ? (await uploadGenerationReference(mask)).id : "";
         const run = await createGenerationRun({
-            referenceSetId: "",
-            ability: references.length || mask ? "image_edit" : "image_generation",
+            projectId: runOptions?.projectId,
+            referenceSetId: runOptions?.referenceSetId || "",
+            parentRunId: runOptions?.parentRunId,
+            ability: references.length || mask || runOptions?.referenceSetId ? "image_edit" : "image_generation",
             model: requestConfig.model,
             prompt,
             params: {
@@ -709,7 +717,7 @@ async function waitForGenerationRun(runId: string, signal?: AbortSignal) {
 
 async function generationDetailToImages(detail: GenerationRunDetail, signal?: AbortSignal) {
     const outputs = detail.outputs.filter((item) => item.status === "succeeded" && item.mediaObjectId);
-    const images = await Promise.all(outputs.map(async (output) => ({ id: output.id, dataUrl: await mediaObjectToDataUrl(output.mediaObjectId, signal) })));
+    const images = await Promise.all(outputs.map(async (output) => ({ id: output.id, dataUrl: await mediaObjectToDataUrl(output.mediaObjectId, signal), generationRunId: detail.run.id, generationOutputId: output.id, mediaObjectId: output.mediaObjectId })));
     if (!images.length) throw new Error("生成任务没有可读取的图片");
     return images;
 }
@@ -781,6 +789,23 @@ export async function requestGeneration(config: AiConfig, prompt: string, option
         );
         const images = parseImagePayload(response.data);
         return images;
+    } catch (error) {
+        throw new Error(readAxiosError(error, "请求失败"));
+    }
+}
+
+export async function requestAsyncImageRun(config: AiConfig, prompt: string, references: ReferenceImage[], options?: AsyncImageRunOptions) {
+    const requestConfig = resolveModelRequestConfig(config, config.model || config.imageModel);
+    if (options?.imageCapability && !options.imageCapability.supportsReferences && references.length) throw new Error("当前模型不支持参考图");
+    const supportedReferences = options?.imageCapability ? imageReferencesForCapability(options.imageCapability, references) : references;
+    const requestPrompt = supportedReferences.length ? buildImageReferencePromptText(prompt, supportedReferences) : prompt;
+    const requestParams = buildImageRequestParams(config, requestConfig, Math.max(1, Math.min(15, Math.floor(Math.abs(Number(config.count)) || 1))), options);
+    try {
+        return await requestAsyncImageGeneration(requestConfig, withSystemPrompt(requestConfig, requestPrompt), supportedReferences, undefined, requestParams, options, {
+            projectId: options?.projectId,
+            referenceSetId: options?.referenceSetId,
+            parentRunId: options?.parentRunId,
+        });
     } catch (error) {
         throw new Error(readAxiosError(error, "请求失败"));
     }

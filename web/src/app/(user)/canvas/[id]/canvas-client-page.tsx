@@ -6,18 +6,18 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { BookOpen, Bot, Home, ImageIcon, Images, List, Menu, Music2, Plus, Redo2, Settings2, Trash2, Undo2, Upload, Video } from "lucide-react";
 import { saveAs } from "file-saver";
 
-import { buildImageRequestParams, requestEdit, requestGeneration, requestImageQuestion } from "@/services/api/image";
+import { requestAsyncImageRun, requestEdit, requestGeneration, requestImageQuestion } from "@/services/api/image";
 import { requestAudioGeneration, storeGeneratedAudio } from "@/services/api/audio";
 import { requestVideoGeneration, storeGeneratedVideo } from "@/services/api/video";
 import { DOCS_URL } from "@/constant/env";
 import { useI18n } from "@/i18n/use-i18n";
 import { defaultConfig, modelOptionName, resolveModelRequestConfig, type AiConfig, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
-import { imageToDataUrl, resolveImageUrl, uploadImage, type UploadedImage } from "@/services/image-storage";
+import { resolveImageUrl, uploadImage, type UploadedImage } from "@/services/image-storage";
 import { resolveImageModelCapability } from "@/services/api/model-capabilities";
 import { resolveMediaUrl, uploadMediaFile, type UploadedFile } from "@/services/file-storage";
 import { useUserStore } from "@/stores/use-user-store";
 import { nanoid } from "nanoid";
-import { dataUrlToFile, getDataUrlByteSize, readImageMeta } from "@/lib/image-utils";
+import { getDataUrlByteSize, readImageMeta } from "@/lib/image-utils";
 import { imageReferencesForCapability } from "@/lib/image-model-capability";
 import { canvasThemes, type CanvasBackgroundMode } from "@/lib/canvas-theme";
 import { UserStatusActions } from "@/components/layout/user-status-actions";
@@ -57,7 +57,7 @@ import { applyCanvasAgentOps, type CanvasAgentOp, type CanvasAgentSnapshot } fro
 import { buildCanvasResourceReferences, buildNodeMentionReferences } from "../utils/canvas-resource-references";
 import { CANVAS_NODE_TOOLBAR_HIDE_DELAY_MS, resolveCanvasToolbarNodeId } from "../utils/canvas-toolbar-state";
 import type { CanvasAgentMode } from "../components/canvas-agent-chat-ui";
-import { cancelGenerationRun, createGenerationRun, getGenerationRunDetail, mediaObjectUrl, retryGenerationRun, saveGenerationOutputAsAsset, uploadMediaObject, type GenerationOutput, type GenerationRunDetail, type ReferenceIntent, type ReferenceSetDetail } from "@/services/api/creative";
+import { cancelGenerationRun, getGenerationRunDetail, mediaObjectUrl, retryGenerationRun, saveGenerationOutputAsAsset, type GenerationOutput, type GenerationRunDetail, type ReferenceIntent, type ReferenceSetDetail } from "@/services/api/creative";
 import {
     CanvasNodeType,
     type CanvasAssistantImage,
@@ -1598,21 +1598,7 @@ function InfiniteCanvasPage() {
 
     const applyGenerationDetail = useCallback((detail: GenerationRunDetail) => {
         setGenerationDetailsByRunId((prev) => ({ ...prev, [detail.run.id]: detail }));
-        setNodes((prev) => {
-            let hasResultGroup = false;
-            const next = prev.map((node) => {
-                if (node.type === CanvasNodeType.ResultGroup && node.metadata?.generationRunId === detail.run.id) {
-                    hasResultGroup = true;
-                    return node;
-                }
-                if (node.type !== CanvasNodeType.Generation || node.metadata?.generationRunId !== detail.run.id) return node;
-                return applyNodeConfigPatch(node, { status: generationCanvasStatus(detail.run.status) });
-            });
-            if (detail.run.status !== "succeeded" || !detail.outputs.length || hasResultGroup) return next;
-            const parent = next.find((node) => node.type === CanvasNodeType.Generation && node.metadata?.generationRunId === detail.run.id);
-            if (!parent) return next;
-            return [...next, createResultGroupNode(parent, detail)];
-        });
+        setNodes((prev) => prev.map((node) => (node.type === CanvasNodeType.Generation && node.metadata?.generationRunId === detail.run.id ? applyNodeConfigPatch(node, { status: generationCanvasStatus(detail.run.status) }) : node)));
     }, []);
 
     const loadGenerationDetail = useCallback(
@@ -1655,42 +1641,145 @@ function InfiniteCanvasPage() {
                 message.warning(t("generation.node.promptRequired"));
                 return;
             }
+            const generationConfig = buildGenerationConfig(effectiveConfig, node, "image");
+            if (!isAiConfigReady(generationConfig, generationConfig.model)) {
+                openConfigDialog(true);
+                return;
+            }
+            setRunningNodeId(node.id);
+            const controller = startGenerationRequest(node.id, node.id, node.id);
+            let pendingNodeIds: string[] = [];
             try {
                 const referenceSetId = node.metadata?.referenceSetId || resolveGenerationTaskReferenceSetId(node.id, nodesRef.current, connectionsRef.current);
-                const generationConfig = buildGenerationConfig(effectiveConfig, node, "image");
-                const imageRequestOptions = await resolveCanvasImageRequestOptions(generationConfig, new AbortController().signal);
+                const imageRequestOptions = await resolveCanvasImageRequestOptions(generationConfig, controller.signal);
                 if (referenceSetId && imageRequestOptions.imageCapability && !imageRequestOptions.imageCapability.supportsReferences) throw new Error("当前模型不支持参考图");
                 const supportedReferenceImages = imageRequestOptions.imageCapability ? imageReferencesForCapability(imageRequestOptions.imageCapability, context.referenceImages) : context.referenceImages;
                 const hydratedContext = await hydrateNodeGenerationContext({ ...context, referenceImages: supportedReferenceImages });
-                const referenceMediaObjectIds = await uploadGenerationTaskReferences(hydratedContext.referenceImages);
                 const requestConfig = resolveModelRequestConfig(generationConfig, generationConfig.model || generationConfig.imageModel);
                 const count = getGenerationCount(generationConfig.count);
-                const params = {
-                    ...buildImageRequestParams(generationConfig, requestConfig, count, imageRequestOptions),
-                    ...(referenceMediaObjectIds.length ? { referenceMediaObjectIds } : {}),
+                const referenceImages = hydratedContext.referenceImages;
+                const generationType = referenceSetId || referenceImages.length ? ("edit" as const) : ("generation" as const);
+                const generationMetadata = buildImageGenerationMetadata(generationType, generationConfig, count, referenceImages);
+                const taskConfig = NODE_DEFAULT_SIZE[CanvasNodeType.Generation];
+                const imageConfig = NODE_DEFAULT_SIZE[CanvasNodeType.Image];
+                const gap = 96;
+                const rowGap = 36;
+                const rootId = nanoid();
+                const childIds = count > 1 ? Array.from({ length: count }, () => nanoid()) : [];
+                const targetIds = count > 1 ? childIds : [rootId];
+                pendingNodeIds = [rootId, ...childIds];
+                const rootNode: CanvasNodeData = {
+                    id: rootId,
+                    type: CanvasNodeType.Image,
+                    title: prompt.slice(0, 32) || "Generated Image",
+                    position: { x: node.position.x + taskConfig.width + gap, y: node.position.y + taskConfig.height / 2 - imageConfig.height / 2 },
+                    width: imageConfig.width,
+                    height: imageConfig.height,
+                    metadata: {
+                        prompt,
+                        status: NODE_STATUS_LOADING,
+                        isBatchRoot: count > 1,
+                        batchChildIds: count > 1 ? childIds : undefined,
+                        batchUsesReferenceImages: Boolean(referenceSetId || referenceImages.length),
+                        referenceSetId,
+                        ...generationMetadata,
+                        imageBatchExpanded: count > 1 ? true : undefined,
+                    },
                 };
-                handleConfigNodeChange(node.id, { status: "loading", model: requestConfig.model, quality: generationConfig.quality, size: generationConfig.size, count });
-                const run = await createGenerationRun({
-                    projectId,
-                    referenceSetId,
-                    ability: referenceSetId || referenceMediaObjectIds.length ? "image_edit" : "image_generation",
-                    model: requestConfig.model,
-                    prompt,
-                    params,
-                });
-                handleConfigNodeChange(node.id, { generationRunId: run.id, status: "loading" });
-                await loadGenerationDetail(run.id);
+                const childNodes: CanvasNodeData[] = childIds.map((id, index) => ({
+                    id,
+                    type: CanvasNodeType.Image,
+                    title: prompt.slice(0, 32) || "Generated Image",
+                    position: {
+                        x: rootNode.position.x + rootNode.width + 120 + (index % 2) * (imageConfig.width + 36),
+                        y: rootNode.position.y + Math.floor(index / 2) * (imageConfig.height + rowGap),
+                    },
+                    width: imageConfig.width,
+                    height: imageConfig.height,
+                    metadata: { prompt, status: NODE_STATUS_LOADING, batchRootId: count > 1 ? rootId : undefined, referenceSetId, ...generationMetadata },
+                }));
+                setNodes((prev) => [
+                    ...prev.map((item) =>
+                        item.id === node.id
+                            ? {
+                                  ...item,
+                                  metadata: { ...item.metadata, prompt, status: NODE_STATUS_LOADING, errorDetails: undefined, generationRunId: undefined, model: requestConfig.model, quality: generationConfig.quality, size: generationConfig.size, count },
+                              }
+                            : item,
+                    ),
+                    rootNode,
+                    ...childNodes,
+                ]);
+                setConnections((prev) => [...prev, { id: nanoid(), fromNodeId: node.id, toNodeId: rootId }, ...childIds.map((childId) => ({ id: nanoid(), fromNodeId: rootId, toNodeId: childId }))]);
+                targetIds.forEach((targetId) => startGenerationRequest(targetId, node.id, node.id, controller));
+                if (count > 1) startGenerationRequest(rootId, node.id, node.id, controller);
+
+                let hasSuccess = false;
+                let hasFailure = false;
+                await Promise.all(
+                    targetIds.map(async (targetId) => {
+                        try {
+                            const image = await requestAsyncImageRun({ ...generationConfig, count: "1" }, prompt, referenceImages, { ...imageRequestOptions, projectId, referenceSetId }).then((items) => items[0]);
+                            if (!image) throw new Error("生成任务没有返回图片");
+                            const uploaded = await uploadImage(image.dataUrl);
+                            const imageSize = fitNodeSize(uploaded.width, uploaded.height, imageConfig.width, imageConfig.height);
+                            setNodes((prev) => {
+                                const root = prev.find((item) => item.id === rootId);
+                                return prev.map((item) => {
+                                    if (item.id !== targetId && item.id !== rootId) return item;
+                                    const center = { x: item.position.x + item.width / 2, y: item.position.y + item.height / 2 };
+                                    const metadata = { ...item.metadata, ...imageMetadata(uploaded), generationRunId: image.generationRunId, generationOutputId: image.generationOutputId, mediaObjectId: image.mediaObjectId };
+                                    if (item.id === rootId && (targetId === rootId || !root?.metadata?.primaryImageId))
+                                        return { ...item, position: { x: center.x - imageSize.width / 2, y: center.y - imageSize.height / 2 }, width: imageSize.width, height: imageSize.height, metadata: { ...metadata, primaryImageId: targetId } };
+                                    if (item.id === targetId) return { ...item, position: { x: center.x - imageSize.width / 2, y: center.y - imageSize.height / 2 }, width: imageSize.width, height: imageSize.height, metadata };
+                                    return item;
+                                });
+                            });
+                            hasSuccess = true;
+                        } catch (error) {
+                            if (isGenerationCanceled(error)) return;
+                            hasFailure = true;
+                            const errorDetails = error instanceof Error ? error.message : "生成失败";
+                            setNodes((prev) => prev.map((item) => (item.id === targetId ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails } } : item)));
+                        } finally {
+                            finishGenerationRequest(targetId, controller);
+                        }
+                    }),
+                );
+                if (count > 1) finishGenerationRequest(rootId, controller);
+                if (controller.signal.aborted) {
+                    setNodes((prev) => prev.map((item) => (item.id === node.id && item.metadata?.status === NODE_STATUS_LOADING ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_IDLE, errorDetails: undefined } } : item)));
+                    return;
+                }
+                if (hasFailure) message.error(hasSuccess ? "部分图片生成失败" : "全部图片生成失败");
+                setNodes((prev) =>
+                    prev.map((item) =>
+                        item.id === node.id
+                            ? { ...item, metadata: { ...item.metadata, status: hasSuccess ? NODE_STATUS_SUCCESS : NODE_STATUS_ERROR, errorDetails: hasSuccess ? undefined : "全部图片生成失败" } }
+                            : item.id === rootId && !hasSuccess
+                              ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails: "全部图片生成失败" } }
+                              : item,
+                    ),
+                );
             } catch (error) {
-                handleConfigNodeChange(node.id, { status: "error", errorDetails: error instanceof Error ? error.message : t("generation.node.createFailed") });
+                if (isGenerationCanceled(error)) return;
+                const errorDetails = error instanceof Error ? error.message : t("generation.node.createFailed");
+                setNodes((prev) => prev.map((item) => (item.id === node.id || pendingNodeIds.includes(item.id) ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails } } : item)));
                 message.error(error instanceof Error ? error.message : t("generation.node.createFailed"));
+            } finally {
+                finishGenerationRequest(node.id, controller);
+                setRunningNodeId(null);
             }
         },
-        [effectiveConfig, handleConfigNodeChange, loadGenerationDetail, message, projectId, t],
+        [effectiveConfig, finishGenerationRequest, isAiConfigReady, message, openConfigDialog, projectId, startGenerationRequest, t],
     );
 
     const handleRetryGenerationRun = useCallback(
         async (node: CanvasNodeData) => {
-            if (!node.metadata?.generationRunId) return;
+            if (!node.metadata?.generationRunId) {
+                await handleCreateGenerationRun(node);
+                return;
+            }
             try {
                 await retryGenerationRun(node.metadata.generationRunId);
                 handleConfigNodeChange(node.id, { status: "loading" });
@@ -1699,12 +1788,15 @@ function InfiniteCanvasPage() {
                 message.error(error instanceof Error ? error.message : t("generation.node.retryFailed"));
             }
         },
-        [handleConfigNodeChange, loadGenerationDetail, message, t],
+        [handleConfigNodeChange, handleCreateGenerationRun, loadGenerationDetail, message, t],
     );
 
     const handleCancelGenerationRun = useCallback(
         async (node: CanvasNodeData) => {
-            if (!node.metadata?.generationRunId) return;
+            if (!node.metadata?.generationRunId) {
+                stopGenerationByRunningId(node.id);
+                return;
+            }
             try {
                 const run = await cancelGenerationRun(node.metadata.generationRunId);
                 applyGenerationDetail({ run, outputs: generationDetailsByRunId[run.id]?.outputs || [] });
@@ -1712,7 +1804,7 @@ function InfiniteCanvasPage() {
                 message.error(error instanceof Error ? error.message : t("generation.node.cancelFailed"));
             }
         },
-        [applyGenerationDetail, generationDetailsByRunId, message, t],
+        [applyGenerationDetail, generationDetailsByRunId, message, stopGenerationByRunningId, t],
     );
 
     const handleSaveGenerationOutputAsset = useCallback(
@@ -3477,26 +3569,6 @@ function generationCanvasStatus(status: string): NonNullable<CanvasNodeData["met
     return "loading";
 }
 
-function createResultGroupNode(parent: CanvasNodeData, detail: GenerationRunDetail): CanvasNodeData {
-    const spec = NODE_DEFAULT_SIZE[CanvasNodeType.ResultGroup];
-    const firstOutput = detail.outputs[0];
-    return {
-        id: `result_group-${detail.run.id}`,
-        type: CanvasNodeType.ResultGroup,
-        title: "结果组",
-        position: { x: parent.position.x + parent.width + 48, y: parent.position.y },
-        width: spec.width,
-        height: spec.height,
-        metadata: {
-            ...spec.metadata,
-            status: "success",
-            generationRunId: detail.run.id,
-            generationOutputId: firstOutput?.id,
-            mediaObjectId: firstOutput?.mediaObjectId,
-        },
-    };
-}
-
 function buildGenerationConfig(config: AiConfig, node: CanvasNodeData | undefined, mode: CanvasNodeGenerationMode): AiConfig {
     const defaultModel = mode === "image" ? config.imageModel : mode === "video" ? config.videoModel : mode === "audio" ? config.audioModel : config.textModel;
     return {
@@ -3563,17 +3635,6 @@ function resolveGenerationTaskReferenceSetId(nodeId: string, nodes: CanvasNodeDa
             .filter((connection) => connection.toNodeId === nodeId)
             .map((connection) => nodes.find((item) => item.id === connection.fromNodeId))
             .find((node) => node?.type === CanvasNodeType.ReferenceSet && node.metadata?.referenceSetId)?.metadata?.referenceSetId || ""
-    );
-}
-
-async function uploadGenerationTaskReferences(references: ReferenceImage[]) {
-    if (!references.length) return [];
-    return Promise.all(
-        references.map(async (image) => {
-            const dataUrl = image.dataUrl?.startsWith("data:") ? image.dataUrl : await imageToDataUrl(image);
-            if (!dataUrl) throw new Error("参考图读取失败");
-            return (await uploadMediaObject(dataUrlToFile({ ...image, dataUrl }))).id;
-        }),
     );
 }
 

@@ -130,13 +130,14 @@ describe("ui warning patterns", () => {
         expect(imageApi).toContain("uploadMediaObject");
         expect(imageApi).toContain("mediaObjectUrl");
         expect(imageApi).toContain("referenceMediaObjectIds");
-        expect(imageApi).toContain('ability: references.length || mask ? "image_edit" : "image_generation"');
+        expect(imageApi).toContain('ability: references.length || mask || runOptions?.referenceSetId ? "image_edit" : "image_generation"');
         expect(imageApi).toContain("return await requestAsyncImageGeneration");
     });
 
     test("local docker starts the generation worker for async image jobs", () => {
         expect(source("../server/internal/config/config.go")).toContain('boolEnv("WORKER_ENABLED", true)');
         expect(source("../docker-compose.local.yml")).toContain("WORKER_ENABLED: ${WORKER_ENABLED:-true}");
+        expect(source("../docker-compose.local.yml")).toContain("WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-3}");
     });
 
     test("gateway timeout defaults are capped at ten minutes", () => {
@@ -187,11 +188,14 @@ describe("ui warning patterns", () => {
     test("generation task creation consumes upstream inputs and image capability params", () => {
         const page = source("src/app/(user)/canvas/[id]/canvas-client-page.tsx");
         expect(page).toContain("resolveGenerationTaskReferenceSetId");
-        expect(page).toContain("uploadGenerationTaskReferences");
-        expect(page).toContain("buildImageRequestParams");
-        expect(page).toContain("referenceMediaObjectIds");
+        expect(page).toContain("requestAsyncImageRun");
+        expect(page).toContain('count: "1"');
+        expect(page).toContain("batchChildIds: count > 1 ? childIds : undefined");
+        expect(page).toContain("imageBatchExpanded: count > 1 ? true : undefined");
         expect(page).toContain("inputSummary={getInputSummary(configInputsById.get(contentNode.id) || [])}");
         expect(page).toContain("node.type !== CanvasNodeType.Config && node.type !== CanvasNodeType.Generation");
+        expect(page).not.toContain("uploadGenerationTaskReferences");
+        expect(page).not.toContain("createResultGroupNode(parent, detail)");
     });
 
     test("generation task polling reloads missing run details after refresh", () => {
@@ -200,9 +204,26 @@ describe("ui warning patterns", () => {
         expect(page).toContain("if (!runDetail) return true");
     });
 
+    test("generation task outputs reuse image batch nodes instead of result groups", () => {
+        const page = source("src/app/(user)/canvas/[id]/canvas-client-page.tsx");
+        expect(page).toContain("type: CanvasNodeType.Image");
+        expect(page).toContain("isBatchRoot: count > 1");
+        expect(page).toContain("batchRootId: count > 1 ? rootId : undefined");
+        expect(page).toContain("primaryImageId: targetId");
+        expect(page).toContain("targetIds.map(async (targetId)");
+        expect(page).not.toContain("return [...next, createResultGroupNode(parent, detail)]");
+    });
+
     test("generation task nodes reserve space for split model and parameter rows", () => {
         expect(source("src/app/(user)/canvas/constants.ts")).toContain('[CanvasNodeType.Generation]: { width: 360, height: 340, title: "生成任务" }');
         expect(source("src/app/(user)/canvas/components/generation-node.tsx")).toContain("overflow-y-auto");
+    });
+
+    test("generation task image runs keep generation metadata on image cards", () => {
+        const page = source("src/app/(user)/canvas/[id]/canvas-client-page.tsx");
+        expect(page).toContain("generationRunId: image.generationRunId");
+        expect(page).toContain("generationOutputId: image.generationOutputId");
+        expect(page).toContain("mediaObjectId: image.mediaObjectId");
     });
 
     test("reference composer intent rows avoid compressed four-column layout", () => {
