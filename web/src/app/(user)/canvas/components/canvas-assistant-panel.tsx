@@ -1230,7 +1230,7 @@ function explainNoop(ops: CanvasAgentOp[], snapshot: CanvasAgentSnapshot) {
 
 function nodeToReference(node: CanvasNodeData): CanvasAssistantReference | null {
     if (node.type === CanvasNodeType.Image && node.metadata?.content) {
-        return { id: node.id, type: node.type, title: node.title, dataUrl: node.metadata.content, storageKey: node.metadata.storageKey };
+        return { id: node.id, type: node.type, title: node.title, dataUrl: node.metadata.content, storageKey: node.metadata.storageKey, mediaObjectId: node.metadata.mediaObjectId };
     }
     if (node.type === CanvasNodeType.Text && node.metadata?.content) {
         return { id: node.id, type: node.type, title: node.title, text: node.metadata.content };

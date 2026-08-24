@@ -101,6 +101,7 @@ export type CanvasAssistantReference = {
     title: string;
     dataUrl?: string;
     storageKey?: string;
+    mediaObjectId?: string;
     text?: string;
 };
 

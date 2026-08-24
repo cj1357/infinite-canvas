@@ -11,7 +11,7 @@ import {
 } from "@/lib/image-model-capability";
 import { buildImageReferencePromptText } from "@/lib/image-reference-prompt";
 import { isServerAIEnabled, serverAIHeaders, serverAIUrl } from "@/services/api/server";
-import { cancelGenerationRun, createGenerationRun, getGenerationRunDetail, mediaObjectUrl, uploadMediaObject, type GenerationRunDetail } from "@/services/api/creative";
+import { cancelGenerationRun, createGenerationRun, getGenerationRunDetail, mediaObjectUrl, uploadMediaObject, type GenerationRunDetail, type MediaObject } from "@/services/api/creative";
 import { imageToDataUrl } from "@/services/image-storage";
 import type { ReferenceImage } from "@/types/image";
 
@@ -688,6 +688,7 @@ async function requestAsyncImageGeneration(requestConfig: AiConfig, prompt: stri
 }
 
 async function uploadGenerationReference(image: ReferenceImage) {
+    if (image.mediaObjectId) return { id: image.mediaObjectId } as MediaObject;
     const dataUrl = await imageToDataUrl(image);
     if (!dataUrl) throw new Error("参考图读取失败");
     return uploadMediaObject(dataUrlToFile({ ...image, dataUrl }));

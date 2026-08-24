@@ -55,6 +55,7 @@ import { ResultGroupNode } from "../components/result-group-node";
 import { useCanvasStore } from "../stores/use-canvas-store";
 import { applyCanvasAgentOps, type CanvasAgentOp, type CanvasAgentSnapshot } from "../utils/canvas-agent-ops";
 import { buildCanvasResourceReferences, buildNodeMentionReferences } from "../utils/canvas-resource-references";
+import { mediaObjectIdFromCanvasMediaUrl, stableCanvasMediaUrl } from "../utils/canvas-media-cloud";
 import { CANVAS_NODE_TOOLBAR_HIDE_DELAY_MS, resolveCanvasToolbarNodeId } from "../utils/canvas-toolbar-state";
 import type { CanvasAgentMode } from "../components/canvas-agent-chat-ui";
 import { cancelGenerationRun, getGenerationRunDetail, mediaObjectUrl, retryGenerationRun, saveGenerationOutputAsAsset, type GenerationOutput, type GenerationRunDetail, type ReferenceIntent, type ReferenceSetDetail } from "@/services/api/creative";
@@ -1991,7 +1992,14 @@ function InfiniteCanvasPage() {
             const userPrompt = payload.prompt.trim();
             const prompt = `只修改蒙版透明区域，其他区域保持不变。${userPrompt}`;
             const childId = nanoid();
-            const source = { id: node.id, name: `${node.title || node.id}.png`, type: node.metadata.mimeType || "image/png", dataUrl: node.metadata.content, storageKey: node.metadata.storageKey };
+            const source = {
+                id: node.id,
+                name: `${node.title || node.id}.png`,
+                type: node.metadata.mimeType || "image/png",
+                dataUrl: node.metadata.content,
+                storageKey: node.metadata.storageKey,
+                mediaObjectId: node.metadata.mediaObjectId,
+            };
             const generationMetadata = buildImageGenerationMetadata("edit", generationConfig, 1, [source]);
             setMaskEditNodeId(null);
             setRunningNodeId(childId);
@@ -2016,7 +2024,7 @@ function InfiniteCanvasPage() {
                 const image = await requestEdit(generationConfig, prompt, [source], { id: `${node.id}-mask`, name: "mask.png", type: "image/png", dataUrl: payload.maskDataUrl }, await resolveCanvasImageRequestOptions(generationConfig, controller.signal)).then((items) => items[0]);
                 const uploaded = await uploadImage(image.dataUrl);
                 const size = fitNodeSize(uploaded.width, uploaded.height, node.width, node.height);
-                setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, width: size.width, height: size.height, metadata: { ...item.metadata, ...imageMetadata(uploaded), prompt, ...generationMetadata } } : item)));
+                setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, width: size.width, height: size.height, metadata: { ...item.metadata, ...imageMetadata(uploaded), generationRunId: image.generationRunId, generationOutputId: image.generationOutputId, mediaObjectId: image.mediaObjectId, prompt, ...generationMetadata } } : item)));
             } catch (error) {
                 if (isGenerationCanceled(error)) return;
                 const errorDetails = error instanceof Error ? error.message : "局部修改失败";
@@ -2064,7 +2072,14 @@ function InfiniteCanvasPage() {
                 return;
             }
             const childId = nanoid();
-            const source = { id: node.id, name: `${node.title || node.id}.png`, type: node.metadata.mimeType || "image/png", dataUrl: node.metadata.content, storageKey: node.metadata.storageKey };
+            const source = {
+                id: node.id,
+                name: `${node.title || node.id}.png`,
+                type: node.metadata.mimeType || "image/png",
+                dataUrl: node.metadata.content,
+                storageKey: node.metadata.storageKey,
+                mediaObjectId: node.metadata.mediaObjectId,
+            };
             const prompt = "请对参考图进行 AI 超分高清重绘。保持原图主体、构图、文字布局、品牌元素、画面比例和风格不变，只提升清晰度、纹理细节、边缘锐度和材质质感，不添加新主体，不改变内容。";
             const generationMetadata = buildImageGenerationMetadata("edit", generationConfig, 1, [source]);
             setSuperResolveNodeId(null);
@@ -2090,7 +2105,7 @@ function InfiniteCanvasPage() {
                 const image = await requestEdit(generationConfig, prompt, [source], undefined, await resolveCanvasImageRequestOptions(generationConfig, controller.signal)).then((items) => items[0]);
                 const uploaded = await uploadImage(image.dataUrl);
                 const size = fitNodeSize(uploaded.width, uploaded.height, node.width, node.height);
-                setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, width: size.width, height: size.height, metadata: { ...item.metadata, ...imageMetadata(uploaded), prompt, ...generationMetadata } } : item)));
+                setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, width: size.width, height: size.height, metadata: { ...item.metadata, ...imageMetadata(uploaded), generationRunId: image.generationRunId, generationOutputId: image.generationOutputId, mediaObjectId: image.mediaObjectId, prompt, ...generationMetadata } } : item)));
             } catch (error) {
                 if (isGenerationCanceled(error)) return;
                 const errorDetails = error instanceof Error ? error.message : "超分失败";
@@ -2117,7 +2132,14 @@ function InfiniteCanvasPage() {
             const title = buildAngleLabel(params);
             const prompt = buildAnglePrompt(params);
             const generationMetadata = buildImageGenerationMetadata("edit", generationConfig, 1, [
-                { id: node.id, name: `${node.title || node.id}.png`, type: node.metadata.mimeType || "image/png", dataUrl: node.metadata.content, storageKey: node.metadata.storageKey },
+                {
+                    id: node.id,
+                    name: `${node.title || node.id}.png`,
+                    type: node.metadata.mimeType || "image/png",
+                    dataUrl: node.metadata.content,
+                    storageKey: node.metadata.storageKey,
+                    mediaObjectId: node.metadata.mediaObjectId,
+                },
             ]);
             setAngleNodeId(null);
             setRunningNodeId(childId);
@@ -2138,12 +2160,27 @@ function InfiniteCanvasPage() {
             setDialogNodeId(childId);
             const controller = startGenerationRequest(childId, node.id, childId);
             try {
-                const image = await requestEdit(generationConfig, prompt, [{ id: node.id, name: `${node.title || node.id}.png`, type: node.metadata.mimeType || "image/png", dataUrl: node.metadata.content, storageKey: node.metadata.storageKey }], undefined, await resolveCanvasImageRequestOptions(generationConfig, controller.signal)).then(
+                const image = await requestEdit(
+                    generationConfig,
+                    prompt,
+                    [
+                        {
+                            id: node.id,
+                            name: `${node.title || node.id}.png`,
+                            type: node.metadata.mimeType || "image/png",
+                            dataUrl: node.metadata.content,
+                            storageKey: node.metadata.storageKey,
+                            mediaObjectId: node.metadata.mediaObjectId,
+                        },
+                    ],
+                    undefined,
+                    await resolveCanvasImageRequestOptions(generationConfig, controller.signal),
+                ).then(
                     (items) => items[0],
                 );
                 const uploaded = await uploadImage(image.dataUrl);
                 const size = fitNodeSize(uploaded.width, uploaded.height, imageConfig.width, imageConfig.height);
-                setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, width: size.width, height: size.height, metadata: { ...item.metadata, ...imageMetadata(uploaded), prompt, ...generationMetadata } } : item)));
+                setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, width: size.width, height: size.height, metadata: { ...item.metadata, ...imageMetadata(uploaded), generationRunId: image.generationRunId, generationOutputId: image.generationOutputId, mediaObjectId: image.mediaObjectId, prompt, ...generationMetadata } } : item)));
             } catch (error) {
                 if (isGenerationCanceled(error)) return;
                 const errorDetails = error instanceof Error ? error.message : "生成失败";
@@ -2323,7 +2360,7 @@ function InfiniteCanvasPage() {
                     const isEmptyImageNode = isImageNode && !sourceNode?.metadata?.content;
                     const sourceReference =
                         isImageNode && sourceNode?.metadata?.content
-                            ? [{ id: sourceNode.id, name: `${sourceNode.title || sourceNode.id}.png`, type: sourceNode.metadata.mimeType || "image/png", dataUrl: sourceNode.metadata.content, storageKey: sourceNode.metadata.storageKey }]
+                            ? [{ id: sourceNode.id, name: `${sourceNode.title || sourceNode.id}.png`, type: sourceNode.metadata.mimeType || "image/png", dataUrl: sourceNode.metadata.content, storageKey: sourceNode.metadata.storageKey, mediaObjectId: sourceNode.metadata.mediaObjectId }]
                             : [];
                     const referenceImages = sourceReference.length ? sourceReference : generationContext.referenceImages;
                     const generationType = referenceImages.length ? ("edit" as const) : ("generation" as const);
@@ -2436,7 +2473,7 @@ function InfiniteCanvasPage() {
                                                 position: { x: center.x - imageSize.width / 2, y: center.y - imageSize.height / 2 },
                                                 width: imageSize.width,
                                                 height: imageSize.height,
-                                                metadata: { ...node.metadata, ...imageMetadata(uploaded), primaryImageId: targetId },
+                                                metadata: { ...node.metadata, ...imageMetadata(uploaded), generationRunId: image.generationRunId, generationOutputId: image.generationOutputId, mediaObjectId: image.mediaObjectId, primaryImageId: targetId },
                                             };
                                         if (node.id === targetId)
                                             return {
@@ -2444,7 +2481,7 @@ function InfiniteCanvasPage() {
                                                 position: { x: center.x - imageSize.width / 2, y: center.y - imageSize.height / 2 },
                                                 width: imageSize.width,
                                                 height: imageSize.height,
-                                                metadata: { ...node.metadata, ...imageMetadata(uploaded) },
+                                                metadata: { ...node.metadata, ...imageMetadata(uploaded), generationRunId: image.generationRunId, generationOutputId: image.generationOutputId, mediaObjectId: image.mediaObjectId },
                                             };
                                         return node;
                                     });
@@ -2689,7 +2726,7 @@ function InfiniteCanvasPage() {
                                   type: CanvasNodeType.Image,
                                   width: imageSize.width,
                                   height: imageSize.height,
-                                  metadata: { ...item.metadata, ...imageMetadata(uploadedImage), prompt, ...generationMetadata },
+                                  metadata: { ...item.metadata, ...imageMetadata(uploadedImage), generationRunId: image.generationRunId, generationOutputId: image.generationOutputId, mediaObjectId: image.mediaObjectId, prompt, ...generationMetadata },
                               }
                             : item,
                     ),
@@ -3440,6 +3477,7 @@ function buildAudioGenerationMetadata(config: AiConfig): CanvasNodeMetadata {
 }
 
 function referenceUrl(image: ReferenceImage) {
+    if (image.mediaObjectId) return stableCanvasMediaUrl(image.mediaObjectId);
     return image.storageKey || image.url || (!image.dataUrl.startsWith("data:") ? image.dataUrl : undefined);
 }
 
@@ -3457,7 +3495,16 @@ async function resolveMetadataReferences(metadata: CanvasNodeMetadata) {
     const references = await Promise.all(
         metadata.references.map(async (url, index) => {
             const dataUrl = url.startsWith("image:") ? await resolveImageUrl(url, "") : url;
-            return dataUrl ? { id: `${index}`, name: `reference-${index}.png`, type: "image/png", dataUrl, storageKey: url.startsWith("image:") ? url : undefined } : null;
+            return dataUrl
+                ? {
+                      id: `${index}`,
+                      name: `reference-${index}.png`,
+                      type: "image/png",
+                      dataUrl,
+                      storageKey: url.startsWith("image:") ? url : undefined,
+                      mediaObjectId: mediaObjectIdFromCanvasMediaUrl(url) || undefined,
+                  }
+                : null;
         }),
     );
     return references.every(Boolean) ? (references as ReferenceImage[]) : null;
@@ -3467,8 +3514,10 @@ async function hydrateCanvasImages(nodes: CanvasNodeData[]) {
     return Promise.all(
         nodes.map(async (node) => {
             const content = node.metadata?.content;
+            if ((node.type === CanvasNodeType.Video || node.type === CanvasNodeType.Audio || node.type === CanvasNodeType.Media) && node.metadata?.mediaObjectId) return { ...node, metadata: { ...node.metadata, content: stableCanvasMediaUrl(node.metadata.mediaObjectId) } };
             if ((node.type === CanvasNodeType.Video || node.type === CanvasNodeType.Audio) && node.metadata?.storageKey) return { ...node, metadata: { ...node.metadata, content: await resolveMediaUrl(node.metadata.storageKey, content) } };
             if (node.type !== CanvasNodeType.Image || !content) return node;
+            if (node.metadata?.mediaObjectId) return { ...node, metadata: { ...node.metadata, content: stableCanvasMediaUrl(node.metadata.mediaObjectId) } };
             if (node.metadata?.storageKey) return { ...node, metadata: { ...node.metadata, content: await resolveImageUrl(node.metadata.storageKey, content) } };
             if (!content.startsWith("data:image/")) return node;
             return { ...node, metadata: { ...node.metadata, ...imageMetadata(await uploadImage(content)) } };
@@ -3477,7 +3526,8 @@ async function hydrateCanvasImages(nodes: CanvasNodeData[]) {
 }
 
 async function hydrateAssistantImages(sessions: CanvasAssistantSession[]) {
-    const hydrateItem = async <T extends { dataUrl?: string; storageKey?: string }>(item: T) => {
+    const hydrateItem = async <T extends { dataUrl?: string; storageKey?: string; mediaObjectId?: string }>(item: T) => {
+        if (item.mediaObjectId) return { ...item, dataUrl: stableCanvasMediaUrl(item.mediaObjectId) };
         if (item.storageKey) return { ...item, dataUrl: await resolveImageUrl(item.storageKey, item.dataUrl) };
         if (item.dataUrl?.startsWith("data:image/")) {
             const image = await uploadImage(item.dataUrl);
@@ -3625,6 +3675,7 @@ function sourceNodeReferenceImages(node: CanvasNodeData | null) {
             type: node.metadata.mimeType || "image/png",
             dataUrl: node.metadata.content,
             storageKey: node.metadata.storageKey,
+            mediaObjectId: node.metadata.mediaObjectId,
         },
     ];
 }

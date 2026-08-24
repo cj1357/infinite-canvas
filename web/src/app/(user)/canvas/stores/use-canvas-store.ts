@@ -16,6 +16,7 @@ import {
 } from "@/services/api/creative";
 import { useUserStore } from "@/stores/use-user-store";
 import type { CanvasAssistantSession, CanvasConnection, CanvasNodeData, ViewportTransform } from "../types";
+import { hasUnresolvedCanvasProjectMedia, prepareCanvasProjectMediaForCloud } from "../utils/canvas-media-cloud";
 
 export type CanvasProject = {
     id: string;
@@ -216,11 +217,16 @@ function clearCloudSave(id: string) {
 
 async function saveCloudProject(project: CanvasProject) {
     if (!canUseCloudProjects()) return;
-    if (!cloudProjectIds.has(project.id)) {
-        await createCloudProject(project);
+    const cloudProject = await prepareCloudProject(project);
+    if (hasUnresolvedCanvasProjectMedia(cloudProject)) {
+        console.warn("画布包含当前浏览器无法读取的本地媒体，已跳过本次云端保存。请在原浏览器打开后触发一次保存完成媒体补传。");
         return;
     }
-    const input = projectToCloudInput(project);
+    if (!cloudProjectIds.has(project.id)) {
+        await createCloudProject(cloudProject);
+        return;
+    }
+    const input = projectToCloudInput(cloudProject);
     try {
         await updateCloudCanvasProject(project.id, input);
         cloudProjectIds.add(project.id);
@@ -230,13 +236,18 @@ async function saveCloudProject(project: CanvasProject) {
             return;
         }
         cloudProjectIds.delete(project.id);
-        await createCloudProject(project);
+        await createCloudProject(cloudProject);
     }
 }
 
 async function createCloudProject(project: CanvasProject) {
     if (!canUseCloudProjects()) return;
-    const input = projectToCloudInput(project);
+    const cloudProject = await prepareCloudProject(project);
+    if (hasUnresolvedCanvasProjectMedia(cloudProject)) {
+        console.warn("画布包含当前浏览器无法读取的本地媒体，已跳过本次云端创建。请在原浏览器打开后触发一次保存完成媒体补传。");
+        return;
+    }
+    const input = projectToCloudInput(cloudProject);
     try {
         await createCloudCanvasProject(input);
         cloudProjectIds.add(project.id);
@@ -248,6 +259,16 @@ async function createCloudProject(project: CanvasProject) {
             console.warn("创建云端画布失败", createError, retryError);
         }
     }
+}
+
+async function prepareCloudProject(project: CanvasProject) {
+    const cloudProject = await prepareCanvasProjectMediaForCloud(project);
+    if (cloudProject !== project) {
+        useCanvasStore.setState((state) => ({
+            projects: state.projects.map((item) => (item.id === project.id ? { ...item, nodes: cloudProject.nodes, chatSessions: cloudProject.chatSessions } : item)),
+        }));
+    }
+    return cloudProject;
 }
 
 async function deleteCloudProject(id: string) {
