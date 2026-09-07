@@ -77,6 +77,7 @@ import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio } from "@/types/media";
 
 type CanvasClipboard = {
+    id: string;
     nodes: CanvasNodeData[];
     connections: CanvasConnection[];
 };
@@ -109,6 +110,7 @@ const VIDEO_NODE_MAX_WIDTH = 420;
 const VIDEO_NODE_MAX_HEIGHT = 420;
 const CONNECTION_HANDLE_HIT_RADIUS = 40;
 const CONNECTION_NODE_HIT_PADDING = 32;
+const CANVAS_CLIPBOARD_TYPE = "application/x-infinite-canvas-nodes";
 const NODE_STATUS_IDLE = "idle" as const;
 const NODE_STATUS_LOADING = "loading" as const;
 const NODE_STATUS_SUCCESS = "success" as const;
@@ -136,6 +138,10 @@ function createCanvasNode(type: CanvasNodeType, position: Position, metadata?: C
         height: spec.height,
         metadata: { ...spec.metadata, ...metadata },
     };
+}
+
+function isCanvasInputTarget(target: EventTarget | null) {
+    return target instanceof Element && Boolean(target.closest("input,textarea,select,[contenteditable]:not([contenteditable='false']),[data-canvas-no-zoom],[role='dialog']"));
 }
 
 export default function CanvasPage() {
@@ -934,7 +940,8 @@ function InfiniteCanvasPage() {
         setDialogNodeId(id);
     }, []);
 
-    const copySelectedNodes = useCallback(() => {
+    const copySelectedNodes = useCallback((event: ClipboardEvent) => {
+        if (event.defaultPrevented || isCanvasInputTarget(event.target) || !event.clipboardData) return;
         const selectedIds = selectedNodeIdsRef.current;
         if (!selectedIds.size) return;
 
@@ -949,9 +956,13 @@ function InfiniteCanvasPage() {
         if (!copiedNodes.length) return;
 
         clipboardRef.current = {
+            id: nanoid(),
             nodes: copiedNodes,
             connections: connectionsRef.current.filter((connection) => selectedIds.has(connection.fromNodeId) && selectedIds.has(connection.toNodeId)).map((connection) => ({ ...connection })),
         };
+        event.clipboardData.setData(CANVAS_CLIPBOARD_TYPE, clipboardRef.current.id);
+        event.clipboardData.setData("text/plain", copiedNodes.map((node) => node.type === CanvasNodeType.Text ? node.metadata?.content || node.title : node.title).join("\n"));
+        event.preventDefault();
     }, []);
 
     const pasteCopiedNodes = useCallback(() => {
@@ -1303,25 +1314,46 @@ function InfiniteCanvasPage() {
         };
     }, [finishNodeDrag, handleGlobalMouseMove, handleGlobalMouseUp, handleGlobalPointerMove]);
 
-    const createImageFileNode = useCallback(async (file: File, position: Position) => {
-        const image = await uploadImage(file);
-        const size = fitNodeSize(image.width, image.height);
-        const id = `image-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-        const newNode: CanvasNodeData = {
-            id,
-            type: CanvasNodeType.Image,
-            title: file.name,
-            position: { x: position.x - size.width / 2, y: position.y - size.height / 2 },
-            width: size.width,
-            height: size.height,
-            metadata: imageMetadata(image),
-        };
+    const createImageFileNodes = useCallback(async (files: File[], position: Position) => {
+        const imageConfig = NODE_DEFAULT_SIZE[CanvasNodeType.Image];
+        const results = await Promise.allSettled(files.map(async (file): Promise<CanvasNodeData> => {
+            const image = await uploadImage(file);
+            const size = fitNodeSize(image.width, image.height, imageConfig.width, imageConfig.height);
+            return {
+                id: `image-${nanoid()}`,
+                type: CanvasNodeType.Image,
+                title: file.name,
+                position,
+                ...size,
+                metadata: imageMetadata(image),
+            };
+        }));
+        const imported = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+        if (!imported.length) {
+            message.error("图片导入失败，请重新复制或上传图片");
+            return;
+        }
+        const columns = Math.ceil(Math.sqrt(imported.length));
+        const rows = Math.ceil(imported.length / columns);
+        const cellWidth = Math.max(...imported.map((node) => node.width)) + 32;
+        const cellHeight = Math.max(...imported.map((node) => node.height)) + 32;
+        const newNodes = imported.map((node, index) => ({
+            ...node,
+            position: {
+                x: position.x + (index % columns - (columns - 1) / 2) * cellWidth - node.width / 2,
+                y: position.y + (Math.floor(index / columns) - (rows - 1) / 2) * cellHeight - node.height / 2,
+            },
+        }));
 
-        setNodes((prev) => [...prev, newNode]);
-        setSelectedNodeIds(new Set([id]));
+        setNodes((prev) => [...prev, ...newNodes]);
+        setSelectedNodeIds(new Set(newNodes.map((node) => node.id)));
         setSelectedConnectionId(null);
-        setDialogNodeId(id);
-    }, []);
+        setContextMenu(null);
+        setDialogNodeId(newNodes.length === 1 ? newNodes[0].id : null);
+        const failed = files.length - newNodes.length;
+        if (failed) message.warning(`已添加 ${newNodes.length} 张图片，${failed} 张导入失败`);
+        else message.success(`已添加 ${newNodes.length} 张图片`);
+    }, [message]);
 
     const createVideoFileNode = useCallback(async (file: File, position: Position) => {
         const video = await uploadMediaFile(file, "video");
@@ -1384,29 +1416,45 @@ function InfiniteCanvasPage() {
         [getCanvasCenter],
     );
 
-    const pasteSystemClipboard = useCallback(async () => {
-        if (!navigator.clipboard) return;
-
-        const items = await navigator.clipboard.read();
-        const imageItem = items.find((item) => item.types.some((type) => type.startsWith("image/")));
-        if (imageItem) {
-            const imageType = imageItem.types.find((type) => type.startsWith("image/"));
-            if (!imageType) return;
-            const blob = await imageItem.getType(imageType);
-            const file = new File([blob], "clipboard-image.png", { type: imageType });
-            void createImageFileNode(file, getCanvasCenter());
-            message.success("已从剪切板添加图片");
+    const pasteClipboard = useCallback((event: ClipboardEvent) => {
+        if (event.defaultPrevented || isCanvasInputTarget(event.target) || !event.clipboardData) return;
+        const data = event.clipboardData;
+        // 文件必须在原生粘贴事件结束前取出，不能等异步读取后再访问。
+        const files = data.files.length ? Array.from(data.files) : Array.from(data.items).flatMap((item) => {
+            const file = item.kind === "file" ? item.getAsFile() : null;
+            return file ? [file] : [];
+        });
+        if (files.length) {
+            event.preventDefault();
+            const images = files.filter((file) => file.type.startsWith("image/") || (!file.type && /\.(png|jpe?g|webp|gif|bmp|svg|avif|ico)$/i.test(file.name)));
+            if (images.length) void createImageFileNodes(images, getCanvasCenter());
+            else message.warning("请选择图片文件后粘贴");
             return;
         }
+        if (clipboardRef.current && data.getData(CANVAS_CLIPBOARD_TYPE) === clipboardRef.current.id && pasteCopiedNodes()) {
+            event.preventDefault();
+            return;
+        }
+        if (createTextNodeFromClipboard(data.getData("text/plain"))) {
+            event.preventDefault();
+            message.success("已从剪贴板添加文本");
+        } else {
+            message.info("未读取到图片或文本，请重新复制，或将图片文件拖入画布");
+        }
+    }, [createImageFileNodes, createTextNodeFromClipboard, getCanvasCenter, message, pasteCopiedNodes]);
 
-        const text = await navigator.clipboard.readText();
-        if (createTextNodeFromClipboard(text)) message.success("已从剪切板添加文本");
-    }, [createImageFileNode, createTextNodeFromClipboard, getCanvasCenter, message]);
+    useEffect(() => {
+        window.addEventListener("copy", copySelectedNodes);
+        window.addEventListener("paste", pasteClipboard);
+        return () => {
+            window.removeEventListener("copy", copySelectedNodes);
+            window.removeEventListener("paste", pasteClipboard);
+        };
+    }, [copySelectedNodes, pasteClipboard]);
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            const target = event.target instanceof Element ? event.target : null;
-            if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || target?.closest("[contenteditable='true'],[data-canvas-no-zoom]")) return;
+            if (event.defaultPrevented || isCanvasInputTarget(event.target)) return;
 
             const key = event.key.toLowerCase();
             const isModifierShortcut = event.metaKey || event.ctrlKey;
@@ -1430,18 +1478,6 @@ function InfiniteCanvasPage() {
                 setSelectedConnectionId(null);
                 setContextMenu(null);
                 setSelectionBox(null);
-                return;
-            }
-
-            if (isModifierShortcut && !event.altKey && key === "c") {
-                event.preventDefault();
-                copySelectedNodes();
-                return;
-            }
-
-            if (isModifierShortcut && !event.altKey && key === "v") {
-                event.preventDefault();
-                if (!pasteCopiedNodes()) void pasteSystemClipboard();
                 return;
             }
 
@@ -1472,7 +1508,7 @@ function InfiniteCanvasPage() {
 
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [copySelectedNodes, deleteConnection, deleteNodes, pasteCopiedNodes, pasteSystemClipboard, redoCanvas, selectedConnectionId, setConnecting, undoCanvas]);
+    }, [deleteConnection, deleteNodes, redoCanvas, selectedConnectionId, setConnecting, undoCanvas]);
 
     const handleConnectStart = useCallback(
         (event: ReactMouseEvent, nodeId: string, handleType: "source" | "target") => {
@@ -2231,7 +2267,8 @@ function InfiniteCanvasPage() {
                     return;
                 }
                 const image = await uploadImage(file);
-                const size = fitNodeSize(image.width, image.height);
+                const imageConfig = NODE_DEFAULT_SIZE[CanvasNodeType.Image];
+                const size = fitNodeSize(image.width, image.height, imageConfig.width, imageConfig.height);
                 setNodes((prev) =>
                     prev.map((node) =>
                         node.id === target.nodeId
@@ -2268,13 +2305,13 @@ function InfiniteCanvasPage() {
                 setDialogNodeId(target.nodeId);
             } else {
                 const position = target?.position || screenToCanvas((containerRef.current?.getBoundingClientRect().left || 0) + size.width / 2, (containerRef.current?.getBoundingClientRect().top || 0) + size.height / 2);
-                void createImageFileNode(file, position);
+                void createImageFileNodes([file], position);
             }
 
             uploadTargetRef.current = null;
             event.target.value = "";
         },
-        [createAudioFileNode, createImageFileNode, createVideoFileNode, screenToCanvas, size.height, size.width],
+        [createAudioFileNode, createImageFileNodes, createVideoFileNode, screenToCanvas, size.height, size.width],
     );
 
     const handleDrop = useCallback(
@@ -2284,18 +2321,17 @@ function InfiniteCanvasPage() {
             if (!file) return;
 
             const pos = screenToCanvas(event.clientX, event.clientY);
-            void createImageFileNode(file, pos);
+            void createImageFileNodes([file], pos);
         },
-        [createAudioFileNode, createImageFileNode, createVideoFileNode, screenToCanvas],
+        [createAudioFileNode, createImageFileNodes, createVideoFileNode, screenToCanvas],
     );
 
     const pasteAssistantImage = useCallback(
         (file: File) => {
             const position = screenToCanvas((containerRef.current?.getBoundingClientRect().left || 0) + size.width / 2, (containerRef.current?.getBoundingClientRect().top || 0) + size.height / 2);
-            void createImageFileNode(file, position);
-            message.success("已从剪切板添加图片");
+            void createImageFileNodes([file], position);
         },
-        [createImageFileNode, message, screenToCanvas, size.height, size.width],
+        [createImageFileNodes, screenToCanvas, size.height, size.width],
     );
 
     const handleAssistantSessionsChange = useCallback((sessions: CanvasAssistantSession[], activeId: string | null) => {
